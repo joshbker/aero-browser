@@ -68,82 +68,90 @@ pub async fn tab_create(
             tab_manager.update_tab(&label_clone, |tab| {
                 tab.is_loading = loading;
                 tab.url = url_str.clone();
+
+                // On page finish: track navigation in nav_stack
+                if !loading {
+                    if tab.nav_traversing {
+                        // This was a back/forward — nav_pos already updated, just clear flag
+                        tab.nav_traversing = false;
+                    } else {
+                        // This is a new navigation (link click, redirect after initial load, etc.)
+                        // Only push if URL differs from current stack position
+                        let current = if tab.nav_pos >= 0 && (tab.nav_pos as usize) < tab.nav_stack.len() {
+                            Some(tab.nav_stack[tab.nav_pos as usize].as_str())
+                        } else {
+                            None
+                        };
+                        if current != Some(&url_str) {
+                            let new_pos = tab.nav_pos + 1;
+                            tab.nav_stack.truncate(new_pos as usize);
+                            tab.nav_stack.push(url_str.clone());
+                            tab.nav_pos = new_pos;
+                        }
+                    }
+                    tab.can_go_back = tab.nav_pos > 0;
+                    tab.can_go_forward = (tab.nav_pos as usize) < tab.nav_stack.len() - 1;
+                }
             });
+
+            // Read nav state for the event
+            let (can_go_back, can_go_forward) = tab_manager
+                .get_tab(&label_clone)
+                .map(|t| (t.can_go_back, t.can_go_forward))
+                .unwrap_or((false, false));
 
             let _ = app_for_load.emit("tab_updated", serde_json::json!({
                 "label": label_clone,
                 "loading": loading,
                 "url": url_str,
+                "can_go_back": can_go_back,
+                "can_go_forward": can_go_forward,
             }));
 
-            // When page finishes loading, inject all Aero helpers
+            // When page finishes loading, inject Aero helpers (title + hover)
             if !loading {
                 let label_inject = label_clone.clone();
                 let _ = webview.eval(&format!(
                     r#"
                     (function() {{
+                        if (window.__aeroInjected) return;
+                        window.__aeroInjected = true;
                         var label = '{}';
 
-                        // --- Navigation state reporting ---
-                        function sendNavState() {{
-                            var canBack = window.navigation ? window.navigation.canGoBack : (window.history.length > 1);
-                            var canFwd = window.navigation ? window.navigation.canGoForward : false;
-                            window.__TAURI_INTERNALS__?.invoke('__tab_nav_state_update', {{
+                        // --- Title detection ---
+                        function sendTitle() {{
+                            window.__TAURI_INTERNALS__?.invoke('__tab_title_update', {{
                                 label: label,
-                                can_go_back: canBack,
-                                can_go_forward: canFwd
+                                title: document.title || ''
                             }}).catch(function(){{}});
                         }}
-                        // Send immediately
-                        sendNavState();
-                        // Listen for ongoing navigation changes
-                        if (window.navigation) {{
-                            window.navigation.addEventListener('navigatesuccess', sendNavState);
-                            window.navigation.addEventListener('currententrychange', sendNavState);
+                        sendTitle();
+                        var titleObs = new MutationObserver(sendTitle);
+                        var titleEl = document.querySelector('title');
+                        if (titleEl) {{
+                            titleObs.observe(titleEl, {{ childList: true }});
                         }}
-                        window.addEventListener('popstate', sendNavState);
-                        // Also poll briefly after load to catch async redirects
-                        setTimeout(sendNavState, 100);
-                        setTimeout(sendNavState, 500);
 
-                        // --- Title detection (only set up once) ---
-                        if (!window.__aeroInjected) {{
-                            window.__aeroInjected = true;
+                        // --- Link hover status bar ---
+                        var statusEl = document.createElement('div');
+                        statusEl.id = '__aero_status';
+                        statusEl.style.cssText = 'position:fixed;bottom:0;left:0;max-width:50%;padding:2px 8px;background:rgba(38,38,38,0.95);border-top:1px solid rgba(64,64,64,0.8);border-right:1px solid rgba(64,64,64,0.8);border-top-right-radius:4px;color:rgba(163,163,163,1);font-size:12px;font-family:system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:2147483647;display:none;pointer-events:none;transition:opacity 0.15s;';
+                        document.documentElement.appendChild(statusEl);
 
-                            function sendTitle() {{
-                                window.__TAURI_INTERNALS__?.invoke('__tab_title_update', {{
-                                    label: label,
-                                    title: document.title || ''
-                                }}).catch(function(){{}});
-                            }}
-                            sendTitle();
-                            var titleObs = new MutationObserver(sendTitle);
-                            var titleEl = document.querySelector('title');
-                            if (titleEl) {{
-                                titleObs.observe(titleEl, {{ childList: true }});
-                            }}
-
-                            // --- Link hover status bar ---
-                            var statusEl = document.createElement('div');
-                            statusEl.id = '__aero_status';
-                            statusEl.style.cssText = 'position:fixed;bottom:0;left:0;max-width:50%;padding:2px 8px;background:rgba(38,38,38,0.95);border-top:1px solid rgba(64,64,64,0.8);border-right:1px solid rgba(64,64,64,0.8);border-top-right-radius:4px;color:rgba(163,163,163,1);font-size:12px;font-family:system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:2147483647;display:none;pointer-events:none;transition:opacity 0.15s;';
-                            document.documentElement.appendChild(statusEl);
-
-                            var lastHref = '';
-                            document.addEventListener('mouseover', function(e) {{
-                                var a = e.target.closest('a[href]');
-                                var href = a ? a.href : '';
-                                if (href !== lastHref) {{
-                                    lastHref = href;
-                                    if (href) {{
-                                        statusEl.textContent = href;
-                                        statusEl.style.display = 'block';
-                                    }} else {{
-                                        statusEl.style.display = 'none';
-                                    }}
+                        var lastHref = '';
+                        document.addEventListener('mouseover', function(e) {{
+                            var a = e.target.closest('a[href]');
+                            var href = a ? a.href : '';
+                            if (href !== lastHref) {{
+                                lastHref = href;
+                                if (href) {{
+                                    statusEl.textContent = href;
+                                    statusEl.style.display = 'block';
+                                }} else {{
+                                    statusEl.style.display = 'none';
                                 }}
-                            }}, true);
-                        }}
+                            }}
+                        }}, true);
                     }})();
                     "#,
                     label_inject
@@ -168,6 +176,9 @@ pub async fn tab_create(
         favicon: None,
         can_go_back: false,
         can_go_forward: false,
+        nav_stack: vec![url.clone()],
+        nav_pos: 0,
+        nav_traversing: false,
     };
 
     let tab_manager = app.state::<TabManager>();
@@ -297,29 +308,6 @@ pub async fn tab_duplicate(app: AppHandle, label: String) -> Result<TabInfo, Str
     let tab_manager = app.state::<TabManager>();
     let tab = tab_manager.get_tab(&label).ok_or("Tab not found")?;
     tab_create(app, Some(tab.url)).await
-}
-
-/// Internal command: receive navigation state from content webviews via JS injection.
-#[command]
-pub fn __tab_nav_state_update(
-    app: AppHandle,
-    label: String,
-    can_go_back: bool,
-    can_go_forward: bool,
-) -> Result<(), String> {
-    let tab_manager = app.state::<TabManager>();
-    tab_manager.update_tab(&label, |tab| {
-        tab.can_go_back = can_go_back;
-        tab.can_go_forward = can_go_forward;
-    });
-
-    let _ = app.emit("tab_updated", serde_json::json!({
-        "label": label,
-        "can_go_back": can_go_back,
-        "can_go_forward": can_go_forward,
-    }));
-
-    Ok(())
 }
 
 /// Internal command: receive title updates from content webviews via JS injection.

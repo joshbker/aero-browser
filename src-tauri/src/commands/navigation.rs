@@ -1,29 +1,32 @@
-use tauri::{command, AppHandle, Manager};
+use tauri::{command, AppHandle, Emitter, Manager};
 
 use crate::state::tab_state::TabManager;
 
-/// JS snippet that queries nav state and sends it back to Rust.
-/// Uses setTimeout to let the history navigation settle first.
-fn nav_state_check_js(label: &str) -> String {
-    format!(
-        r#"
-        (function() {{
-            function check() {{
-                var canBack = window.navigation ? window.navigation.canGoBack : (window.history.length > 1);
-                var canFwd = window.navigation ? window.navigation.canGoForward : false;
-                window.__TAURI_INTERNALS__?.invoke('__tab_nav_state_update', {{
-                    label: '{}',
-                    can_go_back: canBack,
-                    can_go_forward: canFwd
-                }}).catch(function(){{}});
-            }}
-            setTimeout(check, 50);
-            setTimeout(check, 200);
-            setTimeout(check, 600);
-        }})();
-        "#,
-        label
-    )
+/// Helper: update can_go_back/forward from nav_stack/nav_pos, then emit event.
+fn emit_nav_state(app: &AppHandle, label: &str) {
+    let tab_manager = app.state::<TabManager>();
+
+    let (can_go_back, can_go_forward) = {
+        let tabs = tab_manager.tabs.lock().unwrap();
+        if let Some(tab) = tabs.iter().find(|t| t.label == label) {
+            let back = tab.nav_pos > 0;
+            let fwd = tab.nav_pos < (tab.nav_stack.len() as i32 - 1);
+            (back, fwd)
+        } else {
+            (false, false)
+        }
+    };
+
+    tab_manager.update_tab(label, |tab| {
+        tab.can_go_back = can_go_back;
+        tab.can_go_forward = can_go_forward;
+    });
+
+    let _ = app.emit("tab_updated", serde_json::json!({
+        "label": label,
+        "can_go_back": can_go_back,
+        "can_go_forward": can_go_forward,
+    }));
 }
 
 /// Navigate the active tab (or a specific tab) to a URL
@@ -50,11 +53,17 @@ pub async fn navigate_to(
         .navigate(parsed_url)
         .map_err(|e| e.to_string())?;
 
-    // Update state
+    // Push onto nav stack (truncate any forward history)
     tab_manager.update_tab(&target_label, |tab| {
         tab.url = url.clone();
         tab.is_loading = true;
+        let new_pos = tab.nav_pos + 1;
+        tab.nav_stack.truncate(new_pos as usize);
+        tab.nav_stack.push(url.clone());
+        tab.nav_pos = new_pos;
     });
+
+    emit_nav_state(&app, &target_label);
 
     Ok(())
 }
@@ -69,12 +78,26 @@ pub async fn navigate_back(app: AppHandle) -> Result<(), String> {
         .get_webview(&label)
         .ok_or("Tab webview not found")?;
 
+    // Only go back if we can
+    let can_back = {
+        let tabs = tab_manager.tabs.lock().unwrap();
+        tabs.iter().find(|t| t.label == label).map(|t| t.nav_pos > 0).unwrap_or(false)
+    };
+
+    if !can_back {
+        return Ok(());
+    }
+
+    tab_manager.update_tab(&label, |tab| {
+        tab.nav_traversing = true;
+        tab.nav_pos -= 1;
+    });
+
     webview
         .eval("window.history.back()")
         .map_err(|e| e.to_string())?;
 
-    // Query nav state after the history navigation settles
-    let _ = webview.eval(&nav_state_check_js(&label));
+    emit_nav_state(&app, &label);
 
     Ok(())
 }
@@ -89,12 +112,28 @@ pub async fn navigate_forward(app: AppHandle) -> Result<(), String> {
         .get_webview(&label)
         .ok_or("Tab webview not found")?;
 
+    // Only go forward if we can
+    let can_fwd = {
+        let tabs = tab_manager.tabs.lock().unwrap();
+        tabs.iter().find(|t| t.label == label)
+            .map(|t| t.nav_pos < (t.nav_stack.len() as i32 - 1))
+            .unwrap_or(false)
+    };
+
+    if !can_fwd {
+        return Ok(());
+    }
+
+    tab_manager.update_tab(&label, |tab| {
+        tab.nav_traversing = true;
+        tab.nav_pos += 1;
+    });
+
     webview
         .eval("window.history.forward()")
         .map_err(|e| e.to_string())?;
 
-    // Query nav state after the history navigation settles
-    let _ = webview.eval(&nav_state_check_js(&label));
+    emit_nav_state(&app, &label);
 
     Ok(())
 }

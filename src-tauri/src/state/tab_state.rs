@@ -21,6 +21,15 @@ pub struct TabInfo {
     pub favicon: Option<String>,
     pub can_go_back: bool,
     pub can_go_forward: bool,
+    /// Internal: navigation history stack
+    #[serde(skip)]
+    pub nav_stack: Vec<String>,
+    /// Internal: current position in nav_stack
+    #[serde(skip)]
+    pub nav_pos: i32,
+    /// Internal: true when a back/forward navigation is in progress
+    #[serde(skip)]
+    pub nav_traversing: bool,
 }
 
 /// Manages the list of open tabs and which one is active
