@@ -68,40 +68,34 @@ pub async fn tab_create(
             tab_manager.update_tab(&label_clone, |tab| {
                 tab.is_loading = loading;
                 tab.url = url_str.clone();
-
-                // Track navigation history on page finish
-                if !loading {
-                    let current_url = if tab.nav_index >= 0 && (tab.nav_index as usize) < tab.nav_history.len() {
-                        Some(tab.nav_history[tab.nav_index as usize].clone())
-                    } else {
-                        None
-                    };
-                    // Only push if this is a genuinely new navigation (not back/forward)
-                    if current_url.as_deref() != Some(&url_str) {
-                        // Truncate forward history
-                        let idx = (tab.nav_index + 1) as usize;
-                        tab.nav_history.truncate(idx);
-                        tab.nav_history.push(url_str.clone());
-                        tab.nav_index = tab.nav_history.len() as i32 - 1;
-                    }
-                    tab.can_go_back = tab.nav_index > 0;
-                    tab.can_go_forward = (tab.nav_index as usize) < tab.nav_history.len() - 1;
-                }
             });
-
-            // Read updated state for the event
-            let (can_go_back, can_go_forward) = tab_manager
-                .get_tab(&label_clone)
-                .map(|t| (t.can_go_back, t.can_go_forward))
-                .unwrap_or((false, false));
 
             let _ = app_for_load.emit("tab_updated", serde_json::json!({
                 "label": label_clone,
                 "loading": loading,
                 "url": url_str,
-                "can_go_back": can_go_back,
-                "can_go_forward": can_go_forward,
             }));
+
+            // When page finishes loading, query actual nav state via JS
+            if !loading {
+                let app_nav = app_for_load.clone();
+                let label_nav = label_clone.clone();
+                let _ = webview.eval(&format!(
+                    r#"
+                    (function() {{
+                        // Query navigation state from the actual browser history
+                        var canBack = window.navigation ? window.navigation.canGoBack : (window.history.length > 1);
+                        var canFwd = window.navigation ? window.navigation.canGoForward : false;
+                        window.__TAURI_INTERNALS__?.invoke('__tab_nav_state_update', {{
+                            label: '{}',
+                            can_go_back: canBack,
+                            can_go_forward: canFwd
+                        }}).catch(function(){{}});
+                    }})();
+                    "#,
+                    label_nav
+                ));
+            }
 
             // When page finishes loading, grab the title
             if !loading {
@@ -172,8 +166,6 @@ pub async fn tab_create(
         favicon: None,
         can_go_back: false,
         can_go_forward: false,
-        nav_history: vec![url.clone()],
-        nav_index: 0,
     };
 
     let tab_manager = app.state::<TabManager>();
@@ -303,6 +295,29 @@ pub async fn tab_duplicate(app: AppHandle, label: String) -> Result<TabInfo, Str
     let tab_manager = app.state::<TabManager>();
     let tab = tab_manager.get_tab(&label).ok_or("Tab not found")?;
     tab_create(app, Some(tab.url)).await
+}
+
+/// Internal command: receive navigation state from content webviews via JS injection.
+#[command]
+pub fn __tab_nav_state_update(
+    app: AppHandle,
+    label: String,
+    can_go_back: bool,
+    can_go_forward: bool,
+) -> Result<(), String> {
+    let tab_manager = app.state::<TabManager>();
+    tab_manager.update_tab(&label, |tab| {
+        tab.can_go_back = can_go_back;
+        tab.can_go_forward = can_go_forward;
+    });
+
+    let _ = app.emit("tab_updated", serde_json::json!({
+        "label": label,
+        "can_go_back": can_go_back,
+        "can_go_forward": can_go_forward,
+    }));
+
+    Ok(())
 }
 
 /// Internal command: receive title updates from content webviews via JS injection.
