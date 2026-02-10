@@ -1,6 +1,30 @@
-use tauri::{command, AppHandle, Emitter, Manager};
+use tauri::{command, AppHandle, Manager};
 
 use crate::state::tab_state::TabManager;
+
+/// JS snippet that queries nav state and sends it back to Rust.
+/// Uses setTimeout to let the history navigation settle first.
+fn nav_state_check_js(label: &str) -> String {
+    format!(
+        r#"
+        (function() {{
+            function check() {{
+                var canBack = window.navigation ? window.navigation.canGoBack : (window.history.length > 1);
+                var canFwd = window.navigation ? window.navigation.canGoForward : false;
+                window.__TAURI_INTERNALS__?.invoke('__tab_nav_state_update', {{
+                    label: '{}',
+                    can_go_back: canBack,
+                    can_go_forward: canFwd
+                }}).catch(function(){{}});
+            }}
+            setTimeout(check, 50);
+            setTimeout(check, 200);
+            setTimeout(check, 600);
+        }})();
+        "#,
+        label
+    )
+}
 
 /// Navigate the active tab (or a specific tab) to a URL
 #[command]
@@ -49,6 +73,9 @@ pub async fn navigate_back(app: AppHandle) -> Result<(), String> {
         .eval("window.history.back()")
         .map_err(|e| e.to_string())?;
 
+    // Query nav state after the history navigation settles
+    let _ = webview.eval(&nav_state_check_js(&label));
+
     Ok(())
 }
 
@@ -65,6 +92,9 @@ pub async fn navigate_forward(app: AppHandle) -> Result<(), String> {
     webview
         .eval("window.history.forward()")
         .map_err(|e| e.to_string())?;
+
+    // Query nav state after the history navigation settles
+    let _ = webview.eval(&nav_state_check_js(&label));
 
     Ok(())
 }
