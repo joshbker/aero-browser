@@ -76,75 +76,77 @@ pub async fn tab_create(
                 "url": url_str,
             }));
 
-            // When page finishes loading, query actual nav state via JS
+            // When page finishes loading, inject all Aero helpers
             if !loading {
-                let app_nav = app_for_load.clone();
-                let label_nav = label_clone.clone();
+                let label_inject = label_clone.clone();
                 let _ = webview.eval(&format!(
                     r#"
                     (function() {{
-                        // Query navigation state from the actual browser history
-                        var canBack = window.navigation ? window.navigation.canGoBack : (window.history.length > 1);
-                        var canFwd = window.navigation ? window.navigation.canGoForward : false;
-                        window.__TAURI_INTERNALS__?.invoke('__tab_nav_state_update', {{
-                            label: '{}',
-                            can_go_back: canBack,
-                            can_go_forward: canFwd
-                        }}).catch(function(){{}});
-                    }})();
-                    "#,
-                    label_nav
-                ));
-            }
+                        var label = '{}';
 
-            // When page finishes loading, grab the title
-            if !loading {
-                let app_clone = app_for_load.clone();
-                let label_clone2 = label_clone.clone();
-                // Inject JS to get the document title and track link hovers
-                let _ = webview.eval(&format!(
-                    r#"
-                    (function() {{
-                        if (window.__aeroInjected) return;
-                        window.__aeroInjected = true;
-
-                        // Title detection
-                        function sendTitle() {{
-                            window.__TAURI_INTERNALS__?.invoke('__tab_title_update', {{
-                                label: '{}',
-                                title: document.title || ''
+                        // --- Navigation state reporting ---
+                        function sendNavState() {{
+                            var canBack = window.navigation ? window.navigation.canGoBack : (window.history.length > 1);
+                            var canFwd = window.navigation ? window.navigation.canGoForward : false;
+                            window.__TAURI_INTERNALS__?.invoke('__tab_nav_state_update', {{
+                                label: label,
+                                can_go_back: canBack,
+                                can_go_forward: canFwd
                             }}).catch(function(){{}});
                         }}
-                        sendTitle();
-                        var titleObs = new MutationObserver(sendTitle);
-                        var titleEl = document.querySelector('title');
-                        if (titleEl) {{
-                            titleObs.observe(titleEl, {{ childList: true }});
+                        // Send immediately
+                        sendNavState();
+                        // Listen for ongoing navigation changes
+                        if (window.navigation) {{
+                            window.navigation.addEventListener('navigatesuccess', sendNavState);
+                            window.navigation.addEventListener('currententrychange', sendNavState);
                         }}
+                        window.addEventListener('popstate', sendNavState);
+                        // Also poll briefly after load to catch async redirects
+                        setTimeout(sendNavState, 100);
+                        setTimeout(sendNavState, 500);
 
-                        // Link hover status bar (rendered in content webview, bottom-left)
-                        var statusEl = document.createElement('div');
-                        statusEl.id = '__aero_status';
-                        statusEl.style.cssText = 'position:fixed;bottom:0;left:0;max-width:50%;padding:2px 8px;background:rgba(38,38,38,0.95);border-top:1px solid rgba(64,64,64,0.8);border-right:1px solid rgba(64,64,64,0.8);border-top-right-radius:4px;color:rgba(163,163,163,1);font-size:12px;font-family:system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:2147483647;display:none;pointer-events:none;transition:opacity 0.15s;';
-                        document.documentElement.appendChild(statusEl);
+                        // --- Title detection (only set up once) ---
+                        if (!window.__aeroInjected) {{
+                            window.__aeroInjected = true;
 
-                        var lastHref = '';
-                        document.addEventListener('mouseover', function(e) {{
-                            var a = e.target.closest('a[href]');
-                            var href = a ? a.href : '';
-                            if (href !== lastHref) {{
-                                lastHref = href;
-                                if (href) {{
-                                    statusEl.textContent = href;
-                                    statusEl.style.display = 'block';
-                                }} else {{
-                                    statusEl.style.display = 'none';
-                                }}
+                            function sendTitle() {{
+                                window.__TAURI_INTERNALS__?.invoke('__tab_title_update', {{
+                                    label: label,
+                                    title: document.title || ''
+                                }}).catch(function(){{}});
                             }}
-                        }}, true);
+                            sendTitle();
+                            var titleObs = new MutationObserver(sendTitle);
+                            var titleEl = document.querySelector('title');
+                            if (titleEl) {{
+                                titleObs.observe(titleEl, {{ childList: true }});
+                            }}
+
+                            // --- Link hover status bar ---
+                            var statusEl = document.createElement('div');
+                            statusEl.id = '__aero_status';
+                            statusEl.style.cssText = 'position:fixed;bottom:0;left:0;max-width:50%;padding:2px 8px;background:rgba(38,38,38,0.95);border-top:1px solid rgba(64,64,64,0.8);border-right:1px solid rgba(64,64,64,0.8);border-top-right-radius:4px;color:rgba(163,163,163,1);font-size:12px;font-family:system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:2147483647;display:none;pointer-events:none;transition:opacity 0.15s;';
+                            document.documentElement.appendChild(statusEl);
+
+                            var lastHref = '';
+                            document.addEventListener('mouseover', function(e) {{
+                                var a = e.target.closest('a[href]');
+                                var href = a ? a.href : '';
+                                if (href !== lastHref) {{
+                                    lastHref = href;
+                                    if (href) {{
+                                        statusEl.textContent = href;
+                                        statusEl.style.display = 'block';
+                                    }} else {{
+                                        statusEl.style.display = 'none';
+                                    }}
+                                }}
+                            }}, true);
+                        }}
                     }})();
                     "#,
-                    label_clone2
+                    label_inject
                 ));
             }
         })
