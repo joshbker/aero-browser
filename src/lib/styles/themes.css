@@ -1,0 +1,13 @@
+:root {
+	--color-bg-primary: theme('colors.neutral.900');
+	--color-bg-secondary: theme('colors.neutral.800');
+	--color-bg-hover: theme('colors.neutral.700');
+	--color-text-primary: theme('colors.neutral.100');
+	--color-text-secondary: theme('colors.neutral.400');
+	--color-accent: theme('colors.blue.500');
+	--color-border: theme('colors.neutral.700');
+
+	--tab-height: 36px;
+	--toolbar-height: 40px;
+	--sidebar-width: 240px;
+}
