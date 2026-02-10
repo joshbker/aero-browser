@@ -128,16 +128,24 @@ pub async fn tab_create(
                             titleObs.observe(titleEl, {{ childList: true }});
                         }}
 
-                        // Link hover detection
+                        // Link hover status bar (rendered in content webview, bottom-left)
+                        var statusEl = document.createElement('div');
+                        statusEl.id = '__aero_status';
+                        statusEl.style.cssText = 'position:fixed;bottom:0;left:0;max-width:50%;padding:2px 8px;background:rgba(38,38,38,0.95);border-top:1px solid rgba(64,64,64,0.8);border-right:1px solid rgba(64,64,64,0.8);border-top-right-radius:4px;color:rgba(163,163,163,1);font-size:12px;font-family:system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:2147483647;display:none;pointer-events:none;transition:opacity 0.15s;';
+                        document.documentElement.appendChild(statusEl);
+
                         var lastHref = '';
                         document.addEventListener('mouseover', function(e) {{
                             var a = e.target.closest('a[href]');
                             var href = a ? a.href : '';
                             if (href !== lastHref) {{
                                 lastHref = href;
-                                window.__TAURI_INTERNALS__?.invoke('__tab_hover_update', {{
-                                    url: href
-                                }}).catch(function(){{}});
+                                if (href) {{
+                                    statusEl.textContent = href;
+                                    statusEl.style.display = 'block';
+                                }} else {{
+                                    statusEl.style.display = 'none';
+                                }}
                             }}
                         }}, true);
                     }})();
@@ -295,13 +303,6 @@ pub async fn tab_duplicate(app: AppHandle, label: String) -> Result<TabInfo, Str
     let tab_manager = app.state::<TabManager>();
     let tab = tab_manager.get_tab(&label).ok_or("Tab not found")?;
     tab_create(app, Some(tab.url)).await
-}
-
-/// Internal command: receive hovered link URL from content webviews via JS injection.
-#[command]
-pub fn __tab_hover_update(app: AppHandle, url: String) -> Result<(), String> {
-    let _ = app.emit("link_hover", serde_json::json!({ "url": url }));
-    Ok(())
 }
 
 /// Internal command: receive title updates from content webviews via JS injection.

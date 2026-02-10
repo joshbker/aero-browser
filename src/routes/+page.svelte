@@ -6,51 +6,52 @@
 	import TabBar from '$lib/components/TabBar.svelte'
 	import NavigationControls from '$lib/components/NavigationControls.svelte'
 	import AddressBar from '$lib/components/AddressBar.svelte'
-	import StatusBar from '$lib/components/StatusBar.svelte'
-
 	let addressBar = $state(null)
 
 	onMount(async () => {
 		await tabs.init()
 
 		// Register global shortcuts (work even when content webview has focus)
+		// Helper: only fire on key press (not release)
+		const onPress = (fn) => (e) => { if (e.state === 'Pressed') fn() }
+
 		try {
-			await register('CommandOrControl+T', () => {
+			await register('CommandOrControl+T', onPress(() => {
 				tabs.create()
-			})
-			await register('CommandOrControl+W', () => {
+			}))
+			await register('CommandOrControl+W', onPress(() => {
 				const state = getActiveTabSync()
 				if (state) tabs.close(state.label)
-			})
-			await register('CommandOrControl+L', () => {
+			}))
+			await register('CommandOrControl+L', onPress(() => {
 				addressBar?.focus()
-			})
-			await register('CommandOrControl+R', () => {
+			}))
+			await register('CommandOrControl+R', onPress(() => {
 				invoke('navigate_refresh')
-			})
-			await register('F5', () => {
+			}))
+			await register('F5', onPress(() => {
 				invoke('navigate_refresh')
-			})
-			await register('CommandOrControl+Shift+T', () => {
+			}))
+			await register('CommandOrControl+Shift+T', onPress(() => {
 				// TODO: reopen last closed tab
 				tabs.create()
-			})
-			await register('CommandOrControl+Tab', () => {
+			}))
+			await register('CommandOrControl+Tab', onPress(() => {
 				tabs.activateNext()
-			})
-			await register('CommandOrControl+Shift+Tab', () => {
+			}))
+			await register('CommandOrControl+Shift+Tab', onPress(() => {
 				tabs.activatePrevious()
-			})
-			await register('Alt+Left', () => {
+			}))
+			await register('Alt+Left', onPress(() => {
 				invoke('navigate_back')
-			})
-			await register('Alt+Right', () => {
+			}))
+			await register('Alt+Right', onPress(() => {
 				invoke('navigate_forward')
-			})
+			}))
 			for (let i = 1; i <= 9; i++) {
-				await register(`CommandOrControl+${i}`, ((index) => () => {
+				await register(`CommandOrControl+${i}`, onPress(((index) => () => {
 					tabs.activateByIndex(index)
-				})(i))
+				})(i)))
 			}
 		} catch (e) {
 			console.error('Failed to register global shortcuts:', e)
@@ -105,6 +106,4 @@
 			isLoading={$activeTab?.is_loading || false}
 		/>
 	</div>
-
-	<StatusBar />
 </div>

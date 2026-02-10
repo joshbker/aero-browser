@@ -70,6 +70,12 @@ function createTabStore() {
 			update((state) => ({
 				...state,
 				activeTabLabel: tab.label,
+				// Merge latest tab state (nav state, loading, etc.)
+				tabs: state.tabs.map((t) =>
+					t.label === tab.label
+						? { ...t, ...tab }
+						: t
+				),
 			}))
 		})
 
