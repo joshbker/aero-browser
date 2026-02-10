@@ -1,4 +1,5 @@
 use tauri::{command, AppHandle, Emitter, Manager, WebviewUrl};
+use tauri::webview::NewWindowResponse;
 use tauri::{LogicalPosition, LogicalSize};
 
 use crate::state::tab_state::{next_tab_label, TabInfo, TabManager};
@@ -48,7 +49,12 @@ pub async fn tab_create(
     let label_for_load = label.clone();
     let app_for_load = app.clone();
 
+    let app_for_new_window = app.clone();
     let webview = tauri::webview::WebviewBuilder::new(&label, webview_url)
+        .on_new_window(move |url, _features| {
+            let _ = app_for_new_window.emit("open_in_new_tab", url.to_string());
+            NewWindowResponse::Deny
+        })
         .on_page_load(move |webview, payload| {
             let loading = match payload.event() {
                 tauri::webview::PageLoadEvent::Started => true,
@@ -62,23 +68,53 @@ pub async fn tab_create(
             tab_manager.update_tab(&label_clone, |tab| {
                 tab.is_loading = loading;
                 tab.url = url_str.clone();
+
+                // Track navigation history on page finish
+                if !loading {
+                    let current_url = if tab.nav_index >= 0 && (tab.nav_index as usize) < tab.nav_history.len() {
+                        Some(tab.nav_history[tab.nav_index as usize].clone())
+                    } else {
+                        None
+                    };
+                    // Only push if this is a genuinely new navigation (not back/forward)
+                    if current_url.as_deref() != Some(&url_str) {
+                        // Truncate forward history
+                        let idx = (tab.nav_index + 1) as usize;
+                        tab.nav_history.truncate(idx);
+                        tab.nav_history.push(url_str.clone());
+                        tab.nav_index = tab.nav_history.len() as i32 - 1;
+                    }
+                    tab.can_go_back = tab.nav_index > 0;
+                    tab.can_go_forward = (tab.nav_index as usize) < tab.nav_history.len() - 1;
+                }
             });
+
+            // Read updated state for the event
+            let (can_go_back, can_go_forward) = tab_manager
+                .get_tab(&label_clone)
+                .map(|t| (t.can_go_back, t.can_go_forward))
+                .unwrap_or((false, false));
 
             let _ = app_for_load.emit("tab_updated", serde_json::json!({
                 "label": label_clone,
                 "loading": loading,
                 "url": url_str,
+                "can_go_back": can_go_back,
+                "can_go_forward": can_go_forward,
             }));
 
             // When page finishes loading, grab the title
             if !loading {
                 let app_clone = app_for_load.clone();
                 let label_clone2 = label_clone.clone();
-                // Inject JS to get the document title and send it back
+                // Inject JS to get the document title and track link hovers
                 let _ = webview.eval(&format!(
                     r#"
                     (function() {{
-                        if (window.__aeroTitleObserver) return;
+                        if (window.__aeroInjected) return;
+                        window.__aeroInjected = true;
+
+                        // Title detection
                         function sendTitle() {{
                             window.__TAURI_INTERNALS__?.invoke('__tab_title_update', {{
                                 label: '{}',
@@ -86,11 +122,24 @@ pub async fn tab_create(
                             }}).catch(function(){{}});
                         }}
                         sendTitle();
-                        window.__aeroTitleObserver = new MutationObserver(sendTitle);
+                        var titleObs = new MutationObserver(sendTitle);
                         var titleEl = document.querySelector('title');
                         if (titleEl) {{
-                            window.__aeroTitleObserver.observe(titleEl, {{ childList: true }});
+                            titleObs.observe(titleEl, {{ childList: true }});
                         }}
+
+                        // Link hover detection
+                        var lastHref = '';
+                        document.addEventListener('mouseover', function(e) {{
+                            var a = e.target.closest('a[href]');
+                            var href = a ? a.href : '';
+                            if (href !== lastHref) {{
+                                lastHref = href;
+                                window.__TAURI_INTERNALS__?.invoke('__tab_hover_update', {{
+                                    url: href
+                                }}).catch(function(){{}});
+                            }}
+                        }}, true);
                     }})();
                     "#,
                     label_clone2
@@ -113,6 +162,10 @@ pub async fn tab_create(
         title: "New Tab".to_string(),
         is_loading: true,
         favicon: None,
+        can_go_back: false,
+        can_go_forward: false,
+        nav_history: vec![url.clone()],
+        nav_index: 0,
     };
 
     let tab_manager = app.state::<TabManager>();
@@ -233,6 +286,21 @@ pub fn tab_resize_all(app: AppHandle) -> Result<(), String> {
         }
     }
 
+    Ok(())
+}
+
+/// Duplicate a tab — creates a new tab with the same URL.
+#[command]
+pub async fn tab_duplicate(app: AppHandle, label: String) -> Result<TabInfo, String> {
+    let tab_manager = app.state::<TabManager>();
+    let tab = tab_manager.get_tab(&label).ok_or("Tab not found")?;
+    tab_create(app, Some(tab.url)).await
+}
+
+/// Internal command: receive hovered link URL from content webviews via JS injection.
+#[command]
+pub fn __tab_hover_update(app: AppHandle, url: String) -> Result<(), String> {
+    let _ = app.emit("link_hover", serde_json::json!({ "url": url }));
     Ok(())
 }
 

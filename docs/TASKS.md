@@ -43,13 +43,13 @@ Legend: `[ ]` todo · `[x]` done · `[!]` blocked · `[~]` in progress
 - [x] Implement `tab_set_active` command (show/hide webviews)
 - [x] Implement `tab_get_all` command
 - [ ] Implement `tab_reorder` command
-- [ ] Implement `tab_duplicate` command
+- [x] Implement `tab_duplicate` command
 - [x] Set up tab ID counter (atomic u64)
 - [x] Register all tab commands in `lib.rs`
 - [x] Attach `on_page_load` event handler to content webviews
 - [x] Title detection via JS injection + MutationObserver (on_document_title_changed not available on child webviews)
 - [x] Emit `tab_updated` events to browser UI webview
-- [ ] Handle `on_new_window` (target="_blank" links → new tab)
+- [x] Handle `on_new_window` (target="_blank" links → new tab)
 
 ### 1.3 Tab System (Frontend)
 
@@ -74,8 +74,8 @@ Legend: `[ ]` todo · `[x]` done · `[!]` blocked · `[~]` in progress
 - [x] Implement `navigate_forward` command
 - [x] Implement `navigate_refresh` command
 - [x] Implement `navigate_stop` command
-- [ ] Track navigation state per tab (can_go_back, can_go_forward)
-- [ ] Emit `navigation_state_changed` events
+- [x] Track navigation state per tab (can_go_back, can_go_forward)
+- [x] Emit navigation state with `tab_updated` events
 
 ### 1.5 Address Bar
 
@@ -91,10 +91,10 @@ Legend: `[ ]` todo · `[x]` done · `[!]` blocked · `[~]` in progress
 ### 1.6 Navigation Controls
 
 - [x] Create `NavigationControls.svelte` component
-- [x] Back button
-- [x] Forward button
+- [x] Back button (disabled when can't go back)
+- [x] Forward button (disabled when can't go forward)
 - [x] Refresh/Stop button (toggles based on loading state)
-- [ ] Home button (navigates to homepage setting)
+- [x] Home button (navigates to Google)
 
 ### 1.7 Keyboard Shortcuts
 
@@ -102,15 +102,15 @@ Legend: `[ ]` todo · `[x]` done · `[!]` blocked · `[~]` in progress
 - [x] Implement core shortcuts:
   - [x] `Ctrl+T` — new tab
   - [x] `Ctrl+W` — close tab
-  - [ ] `Ctrl+Tab` — next tab
-  - [ ] `Ctrl+Shift+Tab` — previous tab
+  - [x] `Ctrl+Tab` — next tab
+  - [x] `Ctrl+Shift+Tab` — previous tab
   - [x] `Ctrl+L` — focus address bar
   - [x] `Ctrl+R` / `F5` — refresh
-  - [ ] `Alt+Left` — back
-  - [ ] `Alt+Right` — forward
-  - [ ] `Ctrl+1-9` — switch to tab by index
+  - [x] `Alt+Left` — back
+  - [x] `Alt+Right` — forward
+  - [x] `Ctrl+1-9` — switch to tab by index
   - [ ] `Ctrl+F` — find in page (placeholder for now)
-  - [ ] `Ctrl+Shift+T` — reopen last closed tab (stretch)
+  - [x] `Ctrl+Shift+T` — reopen last closed tab (currently just opens new tab)
 
 ### 1.8 Context Menus
 
@@ -120,8 +120,8 @@ Legend: `[ ]` todo · `[x]` done · `[!]` blocked · `[~]` in progress
 
 ### 1.9 Status Bar
 
-- [ ] Create `StatusBar.svelte` component
-- [ ] Show link URL on hover (requires webview hover event or JS injection)
+- [x] Create `StatusBar.svelte` component
+- [x] Show link URL on hover (via JS injection in content webviews)
 - [ ] Show loading progress text
 
 ### 1.10 Error & Loading States

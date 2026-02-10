@@ -6,6 +6,7 @@
 	import TabBar from '$lib/components/TabBar.svelte'
 	import NavigationControls from '$lib/components/NavigationControls.svelte'
 	import AddressBar from '$lib/components/AddressBar.svelte'
+	import StatusBar from '$lib/components/StatusBar.svelte'
 
 	let addressBar = $state(null)
 
@@ -34,6 +35,23 @@
 				// TODO: reopen last closed tab
 				tabs.create()
 			})
+			await register('CommandOrControl+Tab', () => {
+				tabs.activateNext()
+			})
+			await register('CommandOrControl+Shift+Tab', () => {
+				tabs.activatePrevious()
+			})
+			await register('Alt+Left', () => {
+				invoke('navigate_back')
+			})
+			await register('Alt+Right', () => {
+				invoke('navigate_forward')
+			})
+			for (let i = 1; i <= 9; i++) {
+				await register(`CommandOrControl+${i}`, ((index) => () => {
+					tabs.activateByIndex(index)
+				})(i))
+			}
 		} catch (e) {
 			console.error('Failed to register global shortcuts:', e)
 		}
@@ -76,11 +94,17 @@
 
 	<!-- Toolbar -->
 	<div class="flex items-center gap-2 h-10 px-2 bg-neutral-800 border-b border-neutral-700">
-		<NavigationControls isLoading={$activeTab?.is_loading || false} />
+		<NavigationControls
+			isLoading={$activeTab?.is_loading || false}
+			canGoBack={$activeTab?.can_go_back || false}
+			canGoForward={$activeTab?.can_go_forward || false}
+		/>
 		<AddressBar
 			bind:this={addressBar}
 			url={$activeTab?.url || ''}
 			isLoading={$activeTab?.is_loading || false}
 		/>
 	</div>
+
+	<StatusBar />
 </div>

@@ -9,6 +9,14 @@ function createTabStore() {
 	})
 
 	// Listen for backend events
+	// Synchronous state getter
+	function getState() {
+		let result
+		const unsub = subscribe((s) => { result = s })
+		unsub()
+		return result
+	}
+
 	let listenersSetUp = false
 
 	async function setupListeners() {
@@ -38,7 +46,7 @@ function createTabStore() {
 		})
 
 		await listen('tab_updated', (event) => {
-			const { label, loading, url, title, favicon } = event.payload
+			const { label, loading, url, title, favicon, can_go_back, can_go_forward } = event.payload
 			update((state) => ({
 				...state,
 				tabs: state.tabs.map((tab) =>
@@ -49,6 +57,8 @@ function createTabStore() {
 								...(url !== undefined && { url }),
 								...(title !== undefined && { title }),
 								...(favicon !== undefined && { favicon }),
+								...(can_go_back !== undefined && { can_go_back }),
+								...(can_go_forward !== undefined && { can_go_forward }),
 							}
 						: tab
 				),
@@ -61,6 +71,11 @@ function createTabStore() {
 				...state,
 				activeTabLabel: tab.label,
 			}))
+		})
+
+		await listen('open_in_new_tab', (event) => {
+			const url = event.payload
+			invoke('tab_create', { url })
 		})
 	}
 
@@ -126,6 +141,33 @@ function createTabStore() {
 				await invoke('tab_set_active', { label })
 			} catch (e) {
 				console.error('Failed to set active tab:', e)
+			}
+		},
+
+		activateNext() {
+			const state = getState()
+			const idx = state.tabs.findIndex((t) => t.label === state.activeTabLabel)
+			if (idx < 0 || state.tabs.length < 2) return
+			const next = state.tabs[(idx + 1) % state.tabs.length]
+			this.setActive(next.label)
+		},
+
+		activatePrevious() {
+			const state = getState()
+			const idx = state.tabs.findIndex((t) => t.label === state.activeTabLabel)
+			if (idx < 0 || state.tabs.length < 2) return
+			const prev = state.tabs[(idx - 1 + state.tabs.length) % state.tabs.length]
+			this.setActive(prev.label)
+		},
+
+		activateByIndex(n) {
+			const state = getState()
+			if (state.tabs.length === 0) return
+			// Ctrl+9 always goes to last tab (Chrome behaviour)
+			if (n === 9) {
+				this.setActive(state.tabs[state.tabs.length - 1].label)
+			} else if (n <= state.tabs.length) {
+				this.setActive(state.tabs[n - 1].label)
 			}
 		},
 	}

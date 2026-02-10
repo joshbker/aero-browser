@@ -22,7 +22,9 @@ pub fn run() {
             commands::tabs::tab_get_all,
             commands::tabs::tab_get_active,
             commands::tabs::tab_resize_all,
+            commands::tabs::tab_duplicate,
             commands::tabs::__tab_title_update,
+            commands::tabs::__tab_hover_update,
             // Navigation commands
             commands::navigation::navigate_to,
             commands::navigation::navigate_back,
