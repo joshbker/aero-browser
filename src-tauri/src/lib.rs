@@ -23,7 +23,13 @@ pub fn run() {
             commands::tabs::tab_get_active,
             commands::tabs::tab_resize_all,
             commands::tabs::tab_duplicate,
+            commands::tabs::tab_reorder,
             commands::tabs::__tab_title_update,
+            commands::tabs::__tab_favicon_update,
+            commands::tabs::ui_focus,
+            commands::tabs::ui_set_height,
+            commands::tabs::show_context_menu,
+            commands::tabs::close_context_menu,
             // Navigation commands
             commands::navigation::navigate_to,
             commands::navigation::navigate_back,
@@ -31,6 +37,10 @@ pub fn run() {
             commands::navigation::navigate_refresh,
             commands::navigation::navigate_stop,
             commands::navigation::navigate_get_url,
+            // Find commands
+            commands::find::find_in_page,
+            commands::find::find_clear,
+            commands::find::__find_result,
         ])
         .setup(|app| {
             let width = 1280.0_f64;
@@ -60,23 +70,37 @@ pub fn run() {
                 LogicalSize::new(width, CHROME_HEIGHT),
             )?;
 
-            // Listen for window resize — resize the UI webview width + all content webviews
+            // Listen for window events — resize webviews and close context menu on move
             let app_handle = app.handle().clone();
             window.on_window_event(move |event| {
-                if let tauri::WindowEvent::Resized(size) = event {
-                    let scale = app_handle
-                        .get_window("main")
-                        .and_then(|w| w.scale_factor().ok())
-                        .unwrap_or(1.0);
-                    let new_width = size.width as f64 / scale;
+                match event {
+                    tauri::WindowEvent::Resized(size) => {
+                        let scale = app_handle
+                            .get_window("main")
+                            .and_then(|w| w.scale_factor().ok())
+                            .unwrap_or(1.0);
+                        let new_width = size.width as f64 / scale;
 
-                    // Resize UI webview width (height stays CHROME_HEIGHT)
-                    if let Some(ui) = app_handle.get_webview("browser-ui") {
-                        let _ = ui.set_size(LogicalSize::new(new_width, CHROME_HEIGHT));
+                        // Resize UI webview width (height stays CHROME_HEIGHT)
+                        if let Some(ui) = app_handle.get_webview("browser-ui") {
+                            let _ = ui.set_size(LogicalSize::new(new_width, CHROME_HEIGHT));
+                        }
+
+                        // Resize all content webviews
+                        let _ = commands::tabs::tab_resize_all(app_handle.clone());
+
+                        // Close context menu popup if open
+                        if let Some(w) = app_handle.get_window("ctx-menu") {
+                            let _ = w.close();
+                        }
                     }
-
-                    // Resize all content webviews
-                    let _ = commands::tabs::tab_resize_all(app_handle.clone());
+                    tauri::WindowEvent::Moved(_) => {
+                        // Close context menu popup when main window moves
+                        if let Some(w) = app_handle.get_window("ctx-menu") {
+                            let _ = w.close();
+                        }
+                    }
+                    _ => {}
                 }
             });
 

@@ -79,6 +79,19 @@ function createTabStore() {
 			}))
 		})
 
+		await listen('tab_reordered', (event) => {
+			const { label, new_index } = event.payload
+			update((state) => {
+				const tabs = [...state.tabs]
+				const oldIndex = tabs.findIndex(t => t.label === label)
+				if (oldIndex >= 0) {
+					const [tab] = tabs.splice(oldIndex, 1)
+					tabs.splice(new_index, 0, tab)
+				}
+				return { ...state, tabs }
+			})
+		})
+
 		await listen('open_in_new_tab', (event) => {
 			const url = event.payload
 			invoke('tab_create', { url })

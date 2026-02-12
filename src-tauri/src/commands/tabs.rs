@@ -132,11 +132,48 @@ pub async fn tab_create(
                             titleObs.observe(titleEl, {{ childList: true }});
                         }}
 
+                        // --- Favicon detection ---
+                        function sendFavicon() {{
+                            var link = document.querySelector('link[rel*="icon"]');
+                            var faviconUrl = link ? link.href : '';
+                            if (!faviconUrl) {{
+                                try {{
+                                    faviconUrl = new URL('/favicon.ico', window.location.origin).href;
+                                }} catch(e) {{}}
+                            }}
+                            window.__TAURI_INTERNALS__?.invoke('__tab_favicon_update', {{
+                                label: label,
+                                favicon: faviconUrl || ''
+                            }}).catch(function(){{}});
+                        }}
+                        sendFavicon();
+                        var faviconObs = new MutationObserver(sendFavicon);
+                        var headEl = document.querySelector('head');
+                        if (headEl) {{
+                            faviconObs.observe(headEl, {{ childList: true, subtree: true }});
+                        }}
+
                         // --- Link hover status bar ---
                         var statusEl = document.createElement('div');
                         statusEl.id = '__aero_status';
                         statusEl.style.cssText = 'position:fixed;bottom:0;left:0;max-width:50%;padding:2px 8px;background:rgba(38,38,38,0.95);border-top:1px solid rgba(64,64,64,0.8);border-right:1px solid rgba(64,64,64,0.8);border-top-right-radius:4px;color:rgba(163,163,163,1);font-size:12px;font-family:system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:2147483647;display:none;pointer-events:none;transition:opacity 0.15s;';
                         document.documentElement.appendChild(statusEl);
+
+                        // Show loading text, then hide once page is fully loaded
+                        statusEl.textContent = 'Loading...';
+                        statusEl.style.display = 'block';
+                        function hideLoading() {{
+                            if (statusEl.textContent === 'Loading...') {{
+                                statusEl.style.display = 'none';
+                            }}
+                        }}
+                        if (document.readyState === 'complete') {{
+                            hideLoading();
+                        }} else {{
+                            window.addEventListener('load', hideLoading);
+                            // Fallback: hide after 2s even if load doesn't fire
+                            setTimeout(hideLoading, 2000);
+                        }}
 
                         var lastHref = '';
                         document.addEventListener('mouseover', function(e) {{
@@ -176,8 +213,8 @@ pub async fn tab_create(
         favicon: None,
         can_go_back: false,
         can_go_forward: false,
-        nav_stack: vec![url.clone()],
-        nav_pos: 0,
+        nav_stack: Vec::new(),
+        nav_pos: -1,
         nav_traversing: false,
     };
 
@@ -324,5 +361,234 @@ pub fn __tab_title_update(app: AppHandle, label: String, title: String) -> Resul
         "title": title,
     }));
 
+    Ok(())
+}
+
+/// Internal command: receive favicon updates from content webviews via JS injection.
+#[command]
+pub fn __tab_favicon_update(app: AppHandle, label: String, favicon: String) -> Result<(), String> {
+    let tab_manager = app.state::<TabManager>();
+
+    let favicon_opt = if favicon.is_empty() || !favicon.starts_with("http") {
+        None
+    } else {
+        Some(favicon.clone())
+    };
+
+    tab_manager.update_tab(&label, |tab| {
+        tab.favicon = favicon_opt.clone();
+    });
+
+    let _ = app.emit("tab_updated", serde_json::json!({
+        "label": label,
+        "favicon": favicon_opt,
+    }));
+
+    Ok(())
+}
+
+/// Reorder a tab to a new position in the tab list
+#[command]
+pub fn tab_reorder(
+    app: AppHandle,
+    label: String,
+    new_index: usize,
+) -> Result<(), String> {
+    let tab_manager = app.state::<TabManager>();
+
+    let mut tabs = tab_manager.tabs.lock().unwrap();
+
+    let old_index = tabs.iter()
+        .position(|t| t.label == label)
+        .ok_or("Tab not found")?;
+
+    if new_index >= tabs.len() {
+        return Err("Invalid index".to_string());
+    }
+
+    let tab = tabs.remove(old_index);
+    tabs.insert(new_index, tab);
+
+    drop(tabs);
+
+    let _ = app.emit("tab_reordered", serde_json::json!({
+        "label": label,
+        "old_index": old_index,
+        "new_index": new_index,
+    }));
+
+    Ok(())
+}
+
+/// Show a native popup context menu as a separate borderless window on top of everything.
+/// Uses anchor-based navigation for menu item clicks (no __TAURI_INTERNALS__ needed).
+/// Auto-closes on focus loss, main window move, or Escape.
+/// MUST be async to avoid WebView2 deadlock on Windows.
+#[command]
+pub async fn show_context_menu(
+    app: AppHandle,
+    x: f64,
+    y: f64,
+    tab_label: String,
+    items: Vec<serde_json::Value>,
+) -> Result<(), String> {
+    // Close any existing context menu popup
+    close_context_menu(app.clone())?;
+
+    // Get the main window's screen position so we can place the popup relative to it
+    let main_window = app.get_window("main").ok_or("Main window not found")?;
+    let main_pos = main_window.outer_position().map_err(|e| e.to_string())?;
+    let scale = main_window.scale_factor().map_err(|e| e.to_string())?;
+
+    // outer_position returns physical pixels, convert to logical and add click offset
+    let screen_x = (main_pos.x as f64 / scale) + x;
+    let screen_y = (main_pos.y as f64 / scale) + y;
+
+    // Build the menu HTML — menu items use onclick + window.location to trigger
+    // on_navigation interception, avoiding WebView2's built-in link hover tooltip
+    // The menu div has no border-radius — the window IS the menu, no gaps
+    let mut menu_html = String::from(
+        r#"<!DOCTYPE html><html><head><style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { background: #262626; overflow: hidden; margin: 0; height: 100%; }
+        .menu { background: #262626; border: 1px solid #404040; border-radius: 6px;
+                padding: 4px 0; font-family: system-ui, -apple-system, sans-serif;
+                min-height: 100%; }
+        .item { padding: 6px 12px; color: #d4d4d4; font-size: 13px;
+                cursor: pointer; user-select: none; white-space: nowrap; }
+        .item:hover { background: #404040; }
+        .sep { margin: 4px 0; border-top: 1px solid #404040; }
+        </style></head><body><div class="menu">"#,
+    );
+
+    for item in &items {
+        if item.get("separator").and_then(|v| v.as_bool()).unwrap_or(false) {
+            menu_html.push_str(r#"<div class="sep"></div>"#);
+        } else {
+            let label = item.get("label").and_then(|v| v.as_str()).unwrap_or("");
+            let action = item.get("action").and_then(|v| v.as_str()).unwrap_or("");
+            menu_html.push_str(&format!(
+                r#"<div class="item" onclick="window.location='aero://action/{}';">{}</div>"#,
+                action, label
+            ));
+        }
+    }
+
+    menu_html.push_str("</div></body></html>");
+
+    // Measure menu size:
+    // Each item: 6px top pad + 13px font + 6px bottom pad = 25px
+    // Each separator: 4px top margin + 1px border + 4px bottom margin = 9px
+    // Menu: 1px border top + 4px padding top + items + 4px padding bottom + 1px border bottom = +10px
+    let item_count = items.iter().filter(|i| !i.get("separator").and_then(|v| v.as_bool()).unwrap_or(false)).count();
+    let sep_count = items.len() - item_count;
+    let menu_height = (item_count as f64 * 25.0) + (sep_count as f64 * 9.0) + 24.0;
+    let menu_width = 200.0;
+
+    // Create a borderless, always-on-top popup window
+    let app_for_focus = app.clone();
+    let popup = tauri::window::WindowBuilder::new(&app, "ctx-menu")
+        .title("")
+        .inner_size(menu_width, menu_height)
+        .position(screen_x, screen_y)
+        .decorations(false)
+        .resizable(false)
+        .skip_taskbar(true)
+        .always_on_top(true)
+        .focused(true)
+        .transparent(true)
+        .build()
+        .map_err(|e| format!("Failed to create context menu window: {}", e))?;
+
+    // Auto-close popup when it loses focus (click outside)
+    popup.on_window_event(move |event| {
+        if let tauri::WindowEvent::Focused(false) = event {
+            if let Some(w) = app_for_focus.get_window("ctx-menu") {
+                let _ = w.close();
+            }
+        }
+    });
+
+    // Build the webview with navigation interception for menu actions
+    let webview_url = WebviewUrl::External(
+        "about:blank".parse().map_err(|e| format!("Invalid URL: {}", e))?
+    );
+
+    let tab_label_clone = tab_label.clone();
+    let app_for_nav = app.clone();
+    let webview = tauri::webview::WebviewBuilder::new("ctx-menu-wv", webview_url)
+        .transparent(true)
+        .auto_resize()
+        .on_navigation(move |url| {
+            let url_str = url.to_string();
+            // Intercept aero://action/* URLs — these are menu item clicks
+            if url_str.starts_with("aero://action/") {
+                let action = url_str.trim_start_matches("aero://action/").to_string();
+                // Close the popup
+                if let Some(w) = app_for_nav.get_window("ctx-menu") {
+                    let _ = w.close();
+                }
+                // Emit the action event to the UI webview
+                let _ = app_for_nav.emit("context_menu_action", serde_json::json!({
+                    "tab_label": tab_label_clone,
+                    "action": action,
+                }));
+                return false; // Block the navigation
+            }
+            // Allow about:blank
+            url_str == "about:blank" || url_str == "about:blank/"
+        });
+
+    popup
+        .add_child(
+            webview,
+            LogicalPosition::new(0.0, 0.0),
+            LogicalSize::new(menu_width, menu_height),
+        )
+        .map_err(|e| format!("Failed to add context menu webview: {}", e))?;
+
+    // Inject the menu HTML into the webview
+    if let Some(wv) = app.get_webview("ctx-menu-wv") {
+        let escaped = menu_html.replace('\\', "\\\\").replace('`', "\\`");
+        let _ = wv.eval(&format!("document.open();document.write(`{}`);document.close();", escaped));
+    }
+
+    Ok(())
+}
+
+/// Close the context menu popup window
+#[command]
+pub fn close_context_menu(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_window("ctx-menu") {
+        let _ = window.close();
+    }
+    Ok(())
+}
+
+/// Focus the browser-ui webview (used when global shortcuts need to interact with UI)
+#[command]
+pub fn ui_focus(app: AppHandle) -> Result<(), String> {
+    let webview = app
+        .get_webview("browser-ui")
+        .ok_or("browser-ui webview not found")?;
+    webview.set_focus().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Resize the browser-ui webview height (e.g. to show context menus below the 76px chrome)
+#[command]
+pub fn ui_set_height(app: AppHandle, height: f64) -> Result<(), String> {
+    let webview = app
+        .get_webview("browser-ui")
+        .ok_or("browser-ui webview not found")?;
+
+    let window = app.get_window("main").ok_or("Main window not found")?;
+    let size = window.inner_size().map_err(|e| e.to_string())?;
+    let scale = window.scale_factor().map_err(|e| e.to_string())?;
+    let width = size.width as f64 / scale;
+
+    webview
+        .set_size(LogicalSize::new(width, height))
+        .map_err(|e| e.to_string())?;
     Ok(())
 }

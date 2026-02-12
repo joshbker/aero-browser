@@ -42,7 +42,7 @@ Legend: `[ ]` todo · `[x]` done · `[!]` blocked · `[~]` in progress
 - [x] Implement `tab_close` command (async — destroys webview)
 - [x] Implement `tab_set_active` command (show/hide webviews)
 - [x] Implement `tab_get_all` command
-- [ ] Implement `tab_reorder` command
+- [x] Implement `tab_reorder` command
 - [x] Implement `tab_duplicate` command
 - [x] Set up tab ID counter (atomic u64)
 - [x] Register all tab commands in `lib.rs`
@@ -60,9 +60,9 @@ Legend: `[ ]` todo · `[x]` done · `[!]` blocked · `[~]` in progress
 - [x] Implement tab click to switch active tab
 - [x] Implement new tab button (+)
 - [x] Implement tab close button (×)
-- [ ] Implement tab drag-and-drop reordering
+- [x] Implement tab drag-and-drop reordering
 - [x] Show loading spinner on tabs while page loads
-- [ ] Display favicon on tabs
+- [x] Display favicon on tabs
 - [x] Truncate long tab titles with ellipsis
 - [x] Ctrl+T → new tab, Ctrl+W → close tab keyboard shortcuts (via global-shortcut plugin)
 
@@ -109,26 +109,26 @@ Legend: `[ ]` todo · `[x]` done · `[!]` blocked · `[~]` in progress
   - [x] `Alt+Left` — back
   - [x] `Alt+Right` — forward
   - [x] `Ctrl+1-9` — switch to tab by index
-  - [ ] `Ctrl+F` — find in page (placeholder for now)
+  - [x] `Ctrl+F` — find in page
   - [x] `Ctrl+Shift+T` — reopen last closed tab (currently just opens new tab)
 
 ### 1.8 Context Menus
 
-- [ ] Create `ContextMenu.svelte` component
-- [ ] Right-click on tab → close, close others, close to right, duplicate, pin (placeholder)
-- [ ] Link context menu handling (open in new tab, copy URL) — may need webview-level interception
+- [x] Create `ContextMenu.svelte` component (reusable, for future use)
+- [x] Right-click on tab → close, close others, close to right, duplicate (native popup window approach — separate borderless always-on-top window, auto-closes on blur/move/resize)
+- [ ] Link context menu handling (open in new tab, copy URL) — deferred to Phase 2
 
 ### 1.9 Status Bar
 
 - [x] Create `StatusBar.svelte` component
 - [x] Show link URL on hover (via JS injection in content webviews)
-- [ ] Show loading progress text
+- [x] Show loading progress text
 
 ### 1.10 Error & Loading States
 
-- [ ] Create custom error page for failed navigations
-- [ ] Create loading state UI
-- [ ] Handle webview crashes gracefully
+- [ ] Create custom error page for failed navigations (deferred — WebView2 shows built-in error pages)
+- [x] Create loading state UI (loading spinner on tabs, "Loading..." in status bar)
+- [ ] Handle webview crashes gracefully (deferred — Tauri v2 API limitations)
 
 ---
 
@@ -172,4 +172,5 @@ _Record any issues, decisions, or blockers here as the project progresses._
 
 | Date | Note |
 |------|------|
-| | |
+| 2026-02-12 | Tab context menu uses a separate borderless popup window (not DOM overlay) — WebView2 always renders content webviews on top of UI webview, so the only way to float UI on top of everything is a separate OS window. Menu items use `onclick` + `window.location` navigation intercepted by `on_navigation` (no `__TAURI_INTERNALS__` needed on `about:blank`). Auto-closes on focus loss, main window move/resize. |
+| 2026-02-12 | Escape key removed from global shortcuts — was hijacking Escape system-wide. Now uses local `keydown` listener in UI webview only. |

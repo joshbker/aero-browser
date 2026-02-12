@@ -197,3 +197,6 @@ Track important architectural decisions here as the project evolves.
 | 2026-02-10 | target="_blank" opens new tab | Match Chrome/Firefox behaviour, not system browser |
 | 2026-02-10 | Chrome height as shared constant | 76px (36 tab + 40 toolbar), defined in both Rust and JS |
 | 2026-02-10 | No shadcn-svelte, custom components | Browser chrome is all custom, take design cues from shadcn aesthetic |
+| 2026-02-12 | Popup window for context menus | WebView2 content webviews always render on top of UI webview — separate OS window is the only way to overlay UI on top of everything |
+| 2026-02-12 | No global Escape shortcut | Global shortcuts hijack keys system-wide; Escape uses local keydown listener instead |
+| 2026-02-12 | Navigation-based IPC for popup menus | Popup webviews on about:blank don't have __TAURI_INTERNALS__; use onclick → window.location + on_navigation interception |

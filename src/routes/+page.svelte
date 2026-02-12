@@ -6,7 +6,14 @@
 	import TabBar from '$lib/components/TabBar.svelte'
 	import NavigationControls from '$lib/components/NavigationControls.svelte'
 	import AddressBar from '$lib/components/AddressBar.svelte'
+	import FindBar from '$lib/components/FindBar.svelte'
 	let addressBar = $state(null)
+	let findBarVisible = $state(false)
+
+	function closeFindBar() {
+		findBarVisible = false
+		invoke('find_clear').catch(() => {})
+	}
 
 	onMount(async () => {
 		await tabs.init()
@@ -48,6 +55,10 @@
 			await register('Alt+Right', onPress(() => {
 				invoke('navigate_forward')
 			}))
+			await register('CommandOrControl+F', onPress(() => {
+				findBarVisible = true
+				invoke('ui_focus').catch(() => {})
+			}))
 			for (let i = 1; i <= 9; i++) {
 				await register(`CommandOrControl+${i}`, onPress(((index) => () => {
 					tabs.activateByIndex(index)
@@ -63,6 +74,9 @@
 			if (e.ctrlKey && e.key === 'l') {
 				e.preventDefault()
 				addressBar?.focus()
+			}
+			if (e.key === 'Escape' && findBarVisible) {
+				closeFindBar()
 			}
 		}
 
@@ -89,7 +103,7 @@
 	}
 </script>
 
-<div class="flex-1 flex flex-col">
+<div class="flex-1 flex flex-col relative">
 	<!-- Tab bar (includes window controls) -->
 	<TabBar tabList={$tabs.tabs} activeTabLabel={$tabs.activeTabLabel} />
 
@@ -106,4 +120,7 @@
 			isLoading={$activeTab?.is_loading || false}
 		/>
 	</div>
+
+	<!-- Find bar (Ctrl+F) -->
+	<FindBar visible={findBarVisible} onClose={closeFindBar} />
 </div>

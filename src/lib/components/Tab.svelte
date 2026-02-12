@@ -1,7 +1,8 @@
 <script>
 	import { X, Loader2 } from 'lucide-svelte'
+	import { invoke } from '@tauri-apps/api/core'
 
-	let { tab, isActive = false, onActivate, onClose } = $props()
+	let { tab, isActive = false, onActivate, onClose, onDragStart, onDragEnter, isDragTarget = false } = $props()
 
 	let isHovered = $state(false)
 
@@ -12,6 +13,30 @@
 				? tab.url.replace(/^https?:\/\//, '').replace(/\/$/, '')
 				: 'New Tab'
 	)
+
+	// --- Context menu (native popup window via Rust) ---
+	function handleContextMenu(e) {
+		e.preventDefault()
+		invoke('show_context_menu', {
+			x: e.clientX,
+			y: e.clientY,
+			tabLabel: tab.label,
+			items: [
+				{ label: 'Duplicate Tab', action: 'duplicate' },
+				{ separator: true },
+				{ label: 'Close Tab', action: 'close' },
+				{ label: 'Close Other Tabs', action: 'close_others' },
+				{ label: 'Close Tabs to the Right', action: 'close_to_right' },
+			]
+		}).catch(console.error)
+	}
+
+	// --- Mouse-based drag ---
+	function handleMouseDown(e) {
+		if (e.button !== 0) return
+		if (e.target.closest('button')) return
+		onDragStart?.(tab.label, e)
+	}
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -20,11 +45,14 @@
 	role="tab"
 	tabindex="0"
 	aria-selected={isActive}
-	class="flex items-center gap-1.5 h-full px-3 min-w-[120px] max-w-[200px] cursor-pointer border-r border-neutral-700 transition-colors {isActive ? 'bg-neutral-700' : 'bg-neutral-800 hover:bg-neutral-700/50'}"
+	data-tab-label={tab.label}
+	class="flex items-center gap-1.5 h-full px-3 min-w-[120px] max-w-[200px] cursor-pointer border-r border-neutral-700 transition-colors {isActive ? 'bg-neutral-700' : 'bg-neutral-800 hover:bg-neutral-700/50'} {isDragTarget ? 'border-l-2 border-l-blue-500' : ''}"
 	onclick={onActivate}
 	onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') onActivate() }}
-	onmouseenter={() => (isHovered = true)}
+	onmouseenter={() => { isHovered = true; onDragEnter?.(tab.label) }}
 	onmouseleave={() => (isHovered = false)}
+	onmousedown={handleMouseDown}
+	oncontextmenu={handleContextMenu}
 >
 	{#if tab.is_loading}
 		<div class="shrink-0 animate-spin text-neutral-400">
