@@ -2,11 +2,12 @@ mod commands;
 mod state;
 mod storage;
 
+use state::chrome_height::ChromeHeight;
 use state::tab_state::TabManager;
 use storage::database::Database;
 use tauri::{LogicalPosition, LogicalSize, Manager, WebviewUrl};
 
-/// Chrome height — must match CHROME_HEIGHT in commands/tabs.rs and frontend constants.js
+/// Initial chrome height — will be dynamic via ChromeHeight state
 const CHROME_HEIGHT: f64 = 76.0;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -15,6 +16,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(TabManager::new())
+        .manage(ChromeHeight::new())
         .invoke_handler(tauri::generate_handler![
             // Tab commands
             commands::tabs::tab_create,
@@ -51,6 +53,17 @@ pub fn run() {
             commands::history::history_get_recent,
             commands::history::history_delete,
             commands::history::history_clear,
+            // Bookmark commands
+            commands::bookmarks::bookmark_add,
+            commands::bookmarks::bookmark_update,
+            commands::bookmarks::bookmark_delete,
+            commands::bookmarks::bookmark_move,
+            commands::bookmarks::bookmark_get_children,
+            commands::bookmarks::bookmark_is_bookmarked,
+            commands::bookmarks::bookmark_search,
+            commands::bookmarks::bookmark_get_all,
+            commands::bookmarks::bookmark_get,
+            commands::bookmarks::bookmark_toggle_bar,
         ])
         .setup(|app| {
             // Open the database in {app_data_dir}/default/browser.db
@@ -67,6 +80,8 @@ pub fn run() {
             .map_err(|e| format!("Failed to open database: {}", e))?;
             db.seed_settings()
                 .map_err(|e| format!("Failed to seed settings: {}", e))?;
+            db.seed_bookmarks()
+                .map_err(|e| format!("Failed to seed bookmarks: {}", e))?;
             app.manage(db);
 
             let width = 1280.0_f64;
@@ -107,9 +122,13 @@ pub fn run() {
                             .unwrap_or(1.0);
                         let new_width = size.width as f64 / scale;
 
-                        // Resize UI webview width (height stays CHROME_HEIGHT)
+                        // Resize UI webview width (height uses dynamic chrome height)
+                        let chrome_h = app_handle
+                            .try_state::<ChromeHeight>()
+                            .map(|ch| ch.get())
+                            .unwrap_or(CHROME_HEIGHT);
                         if let Some(ui) = app_handle.get_webview("browser-ui") {
-                            let _ = ui.set_size(LogicalSize::new(new_width, CHROME_HEIGHT));
+                            let _ = ui.set_size(LogicalSize::new(new_width, chrome_h));
                         }
 
                         // Resize all content webviews

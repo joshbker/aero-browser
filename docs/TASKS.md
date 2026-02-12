@@ -172,21 +172,21 @@ Implementation order follows dependency chain. Each feature builds on the previo
 
 ### 2.3 Bookmarks
 
-- [ ] Create `src-tauri/src/storage/bookmarks.rs` — CRUD, tree ops, search, import/export HTML
-- [ ] Create `src-tauri/src/commands/bookmarks.rs` — IPC commands + `bookmark_is_bookmarked(url)`
-- [ ] Register bookmark commands in `lib.rs` and `commands/mod.rs`
-- [ ] Seed root folders on first run: "Bookmarks Bar", "Other Bookmarks"
-- [ ] Create `src/lib/stores/bookmarks.js` — bar items, add/remove/toggle
-- [ ] Create `src/lib/components/BookmarkBar.svelte` — horizontal bar below toolbar
+- [x] Create `src-tauri/src/storage/bookmarks.rs` — CRUD, tree ops, search, import/export HTML
+- [x] Create `src-tauri/src/commands/bookmarks.rs` — IPC commands + `bookmark_is_bookmarked(url)`
+- [x] Register bookmark commands in `lib.rs` and `commands/mod.rs`
+- [x] Seed root folders on first run: "Bookmarks Bar", "Other Bookmarks"
+- [x] Create `src/lib/stores/bookmarks.js` — bar items, add/remove/toggle
+- [x] Create `src/lib/components/BookmarkBar.svelte` — horizontal bar below toolbar
 - [ ] Implement folder dropdowns using popup window pattern
-- [ ] Add star icon to `AddressBar.svelte` — filled/outline to toggle bookmark
-- [ ] Create `src/routes/bookmarks/+page.svelte` — full tree manager with search, import/export
-- [ ] Wire up `aero://bookmarks` navigation
-- [ ] Make CHROME_HEIGHT dynamic — store in Tauri state, push updates via events when bookmarks bar toggles
-- [ ] Update `tab_resize_all` to read dynamic chrome height
-- [ ] Add `Ctrl+D` shortcut to bookmark current page
-- [ ] Add `Ctrl+Shift+B` shortcut to toggle bookmarks bar
-- [ ] Write unit tests for bookmark storage
+- [x] Add star icon to `AddressBar.svelte` — filled/outline to toggle bookmark
+- [x] Create `src/routes/bookmarks/+page.svelte` — full tree manager with search, import/export
+- [x] Wire up `aero://bookmarks` navigation
+- [x] Make CHROME_HEIGHT dynamic — store in Tauri state, push updates via events when bookmarks bar toggles
+- [x] Update `tab_resize_all` to read dynamic chrome height
+- [x] Add `Ctrl+D` shortcut to bookmark current page
+- [x] Add `Ctrl+Shift+B` shortcut to toggle bookmarks bar
+- [x] Write unit tests for bookmark storage
 
 ### 2.4 Multiple Windows
 

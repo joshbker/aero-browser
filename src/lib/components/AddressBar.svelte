@@ -1,10 +1,12 @@
 <script>
 	import { invoke } from '@tauri-apps/api/core'
-	import { Lock, Globe, Settings } from 'lucide-svelte'
+	import { Lock, Globe, Settings, Star } from 'lucide-svelte'
 	import { resolveInput, isAeroUrl } from '$lib/utils/url.js'
 	import { history } from '$lib/stores/history.js'
+	import { bookmarks } from '$lib/stores/bookmarks.js'
 
-	let { url = '', isLoading = false } = $props()
+	let { url = '', isLoading = false, activeTabTitle = '' } = $props()
+	let bookmarkId = $state(null)
 
 	let inputValue = $state('')
 	let isFocused = $state(false)
@@ -22,6 +24,24 @@
 
 	let isHttps = $derived(url?.startsWith('https://'))
 	let isInternal = $derived(isAeroUrl(url || ''))
+	let canBookmark = $derived(url && (url.startsWith('http://') || url.startsWith('https://')) && !isInternal)
+
+	// Check bookmark status when URL changes
+	$effect(() => {
+		if (url && canBookmark) {
+			bookmarks.isBookmarked(url).then((id) => {
+				bookmarkId = id
+			})
+		} else {
+			bookmarkId = null
+		}
+	})
+
+	async function toggleBookmark() {
+		if (!url || !canBookmark) return
+		const result = await bookmarks.toggleBookmark(url, activeTabTitle || url)
+		bookmarkId = result ? result.id : null
+	}
 
 	async function fetchSuggestions(query) {
 		if (!query || query.length < 2) {
@@ -148,6 +168,18 @@
 			autocomplete="off"
 			class="flex-1 bg-transparent text-sm text-neutral-200 placeholder-neutral-500 outline-none"
 		/>
+
+		<!-- Bookmark star -->
+		{#if canBookmark}
+			<button
+				type="button"
+				onclick={toggleBookmark}
+				class="shrink-0 transition-colors {bookmarkId ? 'text-yellow-400' : 'text-neutral-500 hover:text-neutral-300'}"
+				title={bookmarkId ? 'Remove bookmark' : 'Bookmark this page'}
+			>
+				<Star size={14} fill={bookmarkId ? 'currentColor' : 'none'} />
+			</button>
+		{/if}
 	</div>
 
 	<!-- Autocomplete suggestions -->

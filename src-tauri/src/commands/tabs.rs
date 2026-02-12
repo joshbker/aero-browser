@@ -2,11 +2,12 @@ use tauri::{command, AppHandle, Emitter, Manager, WebviewUrl};
 use tauri::webview::NewWindowResponse;
 use tauri::{LogicalPosition, LogicalSize};
 
+use crate::state::chrome_height::ChromeHeight;
 use crate::state::tab_state::{next_tab_label, TabInfo, TabManager};
 use crate::storage::database::Database;
 
-/// Chrome height in logical pixels (tab bar + toolbar)
-/// Keep in sync with CHROME_HEIGHT in src/lib/utils/constants.js
+/// Default chrome height in logical pixels (tab bar + toolbar)
+/// The actual height is dynamic via ChromeHeight state (changes when bookmarks bar toggles)
 const CHROME_HEIGHT: f64 = 76.0;
 
 /// Convert a Tauri app URL (tauri://localhost/settings) back to aero:// format.
@@ -39,7 +40,19 @@ fn get_content_size(app: &AppHandle) -> Result<(f64, f64), String> {
     let scale = window.scale_factor().map_err(|e| e.to_string())?;
     let width = size.width as f64 / scale;
     let height = size.height as f64 / scale;
-    Ok((width, (height - CHROME_HEIGHT).max(0.0)))
+    // Use dynamic chrome height if available, fall back to constant
+    let chrome_h = app
+        .try_state::<ChromeHeight>()
+        .map(|ch| ch.get())
+        .unwrap_or(CHROME_HEIGHT);
+    Ok((width, (height - chrome_h).max(0.0)))
+}
+
+/// Get the current chrome height (for positioning content webviews)
+fn get_chrome_height(app: &AppHandle) -> f64 {
+    app.try_state::<ChromeHeight>()
+        .map(|ch| ch.get())
+        .unwrap_or(CHROME_HEIGHT)
 }
 
 /// Create a new tab webview and register it in state.
@@ -250,7 +263,7 @@ pub async fn tab_create(
     window
         .add_child(
             webview,
-            LogicalPosition::new(0.0, CHROME_HEIGHT),
+            LogicalPosition::new(0.0, get_chrome_height(&app)),
             LogicalSize::new(width, content_height),
         )
         .map_err(|e| format!("Failed to create tab webview: {}", e))?;
@@ -379,9 +392,10 @@ pub fn tab_resize_all(app: AppHandle) -> Result<(), String> {
     let tab_manager = app.state::<TabManager>();
     let (width, content_height) = get_content_size(&app)?;
 
+    let chrome_h = get_chrome_height(&app);
     for label in tab_manager.get_tab_labels() {
         if let Some(wv) = app.get_webview(&label) {
-            let _ = wv.set_position(LogicalPosition::new(0.0, CHROME_HEIGHT));
+            let _ = wv.set_position(LogicalPosition::new(0.0, chrome_h));
             let _ = wv.set_size(LogicalSize::new(width, content_height));
         }
     }

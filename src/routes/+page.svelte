@@ -3,10 +3,12 @@
 	import { invoke } from '@tauri-apps/api/core'
 	import { register, unregisterAll } from '@tauri-apps/plugin-global-shortcut'
 	import { tabs, activeTab } from '$lib/stores/tabs.js'
+	import { bookmarks } from '$lib/stores/bookmarks.js'
 	import TabBar from '$lib/components/TabBar.svelte'
 	import NavigationControls from '$lib/components/NavigationControls.svelte'
 	import AddressBar from '$lib/components/AddressBar.svelte'
 	import FindBar from '$lib/components/FindBar.svelte'
+	import BookmarkBar from '$lib/components/BookmarkBar.svelte'
 	let addressBar = $state(null)
 	let findBarVisible = $state(false)
 
@@ -17,6 +19,7 @@
 
 	onMount(async () => {
 		await tabs.init()
+		await bookmarks.init()
 
 		// Register global shortcuts (work even when content webview has focus)
 		// Helper: only fire on key press (not release)
@@ -61,6 +64,15 @@
 			}))
 			await register('CommandOrControl+H', onPress(() => {
 				invoke('navigate_to', { url: 'aero://history' })
+			}))
+			await register('CommandOrControl+D', onPress(() => {
+				const tab = getActiveTabSync()
+				if (tab?.url) {
+					bookmarks.toggleBookmark(tab.url, tab.title || tab.url)
+				}
+			}))
+			await register('CommandOrControl+Shift+B', onPress(() => {
+				bookmarks.toggleBar()
 			}))
 			for (let i = 1; i <= 9; i++) {
 				await register(`CommandOrControl+${i}`, onPress(((index) => () => {
@@ -121,8 +133,12 @@
 			bind:this={addressBar}
 			url={$activeTab?.url || ''}
 			isLoading={$activeTab?.is_loading || false}
+			activeTabTitle={$activeTab?.title || ''}
 		/>
 	</div>
+
+	<!-- Bookmarks bar -->
+	<BookmarkBar />
 
 	<!-- Find bar (Ctrl+F) -->
 	<FindBar visible={findBarVisible} onClose={closeFindBar} />
