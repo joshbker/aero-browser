@@ -159,16 +159,16 @@ Implementation order follows dependency chain. Each feature builds on the previo
 
 ### 2.2 History
 
-- [ ] Create `src-tauri/src/storage/history.rs` — `add_visit` (upsert), `search`, `get_recent`, `delete`, `clear(timeframe)`
-- [ ] Create `src-tauri/src/commands/history.rs` — IPC commands
-- [ ] Register history commands in `lib.rs` and `commands/mod.rs`
-- [ ] Hook `add_visit()` into `on_page_load` Finished handler in `tabs.rs` (skip `aero://`, `about:blank`, incognito)
-- [ ] Create `src/lib/stores/history.js` — search, getRecent, delete, clear
-- [ ] Create `src/routes/history/+page.svelte` — search bar, date-grouped list, clear data button
-- [ ] Wire up `aero://history` navigation
-- [ ] Add `Ctrl+H` global shortcut to open history
-- [ ] Address bar autocomplete — query history as user types, show dropdown suggestions
-- [ ] Write unit tests for history storage
+- [x] Create `src-tauri/src/storage/history.rs` — `add_visit` (upsert), `search`, `get_recent`, `delete`, `clear(timeframe)`
+- [x] Create `src-tauri/src/commands/history.rs` — IPC commands
+- [x] Register history commands in `lib.rs` and `commands/mod.rs`
+- [x] Hook `add_visit()` into `on_page_load` Finished handler in `tabs.rs` (skip `aero://`, `about:blank`, incognito)
+- [x] Create `src/lib/stores/history.js` — search, getRecent, delete, clear
+- [x] Create `src/routes/history/+page.svelte` — search bar, date-grouped list, clear data button
+- [x] Wire up `aero://history` navigation
+- [x] Add `Ctrl+H` global shortcut to open history
+- [x] Address bar autocomplete — query history as user types, show dropdown suggestions
+- [x] Write unit tests for history storage
 
 ### 2.3 Bookmarks
 

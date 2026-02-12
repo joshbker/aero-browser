@@ -3,6 +3,7 @@ use tauri::webview::NewWindowResponse;
 use tauri::{LogicalPosition, LogicalSize};
 
 use crate::state::tab_state::{next_tab_label, TabInfo, TabManager};
+use crate::storage::database::Database;
 
 /// Chrome height in logical pixels (tab bar + toolbar)
 /// Keep in sync with CHROME_HEIGHT in src/lib/utils/constants.js
@@ -135,6 +136,27 @@ pub async fn tab_create(
                 "can_go_back": can_go_back,
                 "can_go_forward": can_go_forward,
             }));
+
+            // Record page visit in history (skip internal and blank pages)
+            if !loading
+                && !url_str.starts_with("aero://")
+                && !url_str.starts_with("about:")
+                && !url_str.starts_with("tauri://")
+                && !url_str.starts_with("https://tauri.localhost")
+            {
+                if let Some(db) = app_for_load.try_state::<Database>() {
+                    let title = tab_manager
+                        .get_tab(&label_clone)
+                        .and_then(|t| {
+                            if t.title.is_empty() || t.title == "New Tab" {
+                                None
+                            } else {
+                                Some(t.title)
+                            }
+                        });
+                    let _ = db.history_add_visit(&url_str, title.as_deref());
+                }
+            }
 
             // When page finishes loading, inject Aero helpers (title + hover)
             if !loading {

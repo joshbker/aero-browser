@@ -59,6 +59,9 @@
 				findBarVisible = true
 				invoke('ui_focus').catch(() => {})
 			}))
+			await register('CommandOrControl+H', onPress(() => {
+				invoke('navigate_to', { url: 'aero://history' })
+			}))
 			for (let i = 1; i <= 9; i++) {
 				await register(`CommandOrControl+${i}`, onPress(((index) => () => {
 					tabs.activateByIndex(index)

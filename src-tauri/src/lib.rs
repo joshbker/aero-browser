@@ -46,6 +46,11 @@ pub fn run() {
             commands::settings::settings_get,
             commands::settings::settings_set,
             commands::settings::settings_get_all,
+            // History commands
+            commands::history::history_search,
+            commands::history::history_get_recent,
+            commands::history::history_delete,
+            commands::history::history_clear,
         ])
         .setup(|app| {
             // Open the database in {app_data_dir}/default/browser.db
