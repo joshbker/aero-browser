@@ -42,6 +42,10 @@ pub fn run() {
             commands::find::find_in_page,
             commands::find::find_clear,
             commands::find::__find_result,
+            // Settings commands
+            commands::settings::settings_get,
+            commands::settings::settings_set,
+            commands::settings::settings_get_all,
         ])
         .setup(|app| {
             // Open the database in {app_data_dir}/default/browser.db
@@ -56,6 +60,8 @@ pub fn run() {
                     .ok_or_else(|| "Invalid DB path".to_string())?,
             )
             .map_err(|e| format!("Failed to open database: {}", e))?;
+            db.seed_settings()
+                .map_err(|e| format!("Failed to seed settings: {}", e))?;
             app.manage(db);
 
             let width = 1280.0_f64;

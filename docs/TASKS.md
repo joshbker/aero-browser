@@ -147,15 +147,15 @@ Implementation order follows dependency chain. Each feature builds on the previo
 
 ### 2.1 Settings
 
-- [ ] Create `src-tauri/src/storage/settings.rs` — get/set/get_all + seed defaults
-- [ ] Create `src-tauri/src/commands/settings.rs` — `settings_get`, `settings_set`, `settings_get_all`
-- [ ] Register settings commands in `lib.rs` and `commands/mod.rs`
-- [ ] Create `src/lib/stores/settings.js` — writable store with IPC
-- [ ] Create `src/routes/settings/+page.svelte` — settings UI (General, Search, Appearance, Privacy)
-- [ ] Wire up `aero://settings` navigation (detect in `navigate_to` → `WebviewUrl::App("/settings")`)
-- [ ] Update `src/lib/utils/url.js` — handle `aero://` URLs in `isValidUrl`, `resolveInput`, `displayUrl`
-- [ ] Update address bar to display `aero://settings` for internal pages
-- [ ] Write unit tests for settings storage
+- [x] Create `src-tauri/src/storage/settings.rs` — get/set/get_all + seed defaults
+- [x] Create `src-tauri/src/commands/settings.rs` — `settings_get`, `settings_set`, `settings_get_all`
+- [x] Register settings commands in `lib.rs` and `commands/mod.rs`
+- [x] Create `src/lib/stores/settings.js` — writable store with IPC
+- [x] Create `src/routes/settings/+page.svelte` — settings UI (General, Search, Appearance, Privacy)
+- [x] Wire up `aero://settings` navigation (detect in `navigate_to` → `WebviewUrl::App("/settings")`)
+- [x] Update `src/lib/utils/url.js` — handle `aero://` URLs in `isValidUrl`, `resolveInput`, `displayUrl`
+- [x] Update address bar to display `aero://settings` for internal pages
+- [x] Write unit tests for settings storage
 
 ### 2.2 History
 

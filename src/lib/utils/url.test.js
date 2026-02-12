@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { isValidUrl, resolveInput, displayUrl } from './url.js'
+import { isValidUrl, isAeroUrl, resolveInput, displayUrl } from './url.js'
 
 // ── isValidUrl ─────────────────────────────────────────
 
@@ -10,6 +10,12 @@ describe('isValidUrl', () => {
 
 	test('accepts https:// URLs', () => {
 		expect(isValidUrl('https://google.com')).toBe(true)
+	})
+
+	test('accepts aero:// URLs', () => {
+		expect(isValidUrl('aero://settings')).toBe(true)
+		expect(isValidUrl('aero://history')).toBe(true)
+		expect(isValidUrl('aero://bookmarks')).toBe(true)
 	})
 
 	test('accepts bare domains with TLD', () => {
@@ -35,6 +41,21 @@ describe('isValidUrl', () => {
 	})
 })
 
+// ── isAeroUrl ─────────────────────────────────────────
+
+describe('isAeroUrl', () => {
+	test('detects aero:// URLs', () => {
+		expect(isAeroUrl('aero://settings')).toBe(true)
+		expect(isAeroUrl('aero://history')).toBe(true)
+	})
+
+	test('rejects non-aero URLs', () => {
+		expect(isAeroUrl('https://example.com')).toBe(false)
+		expect(isAeroUrl('http://settings')).toBe(false)
+		expect(isAeroUrl('settings')).toBe(false)
+	})
+})
+
 // ── resolveInput ───────────────────────────────────────
 
 describe('resolveInput', () => {
@@ -44,6 +65,11 @@ describe('resolveInput', () => {
 
 	test('preserves full https:// URLs', () => {
 		expect(resolveInput('https://github.com/foo')).toBe('https://github.com/foo')
+	})
+
+	test('preserves aero:// URLs', () => {
+		expect(resolveInput('aero://settings')).toBe('aero://settings')
+		expect(resolveInput('aero://history')).toBe('aero://history')
 	})
 
 	test('prepends https:// to bare domains', () => {
@@ -98,5 +124,10 @@ describe('displayUrl', () => {
 
 	test('handles URL with port', () => {
 		expect(displayUrl('http://localhost:3000/app')).toBe('localhost:3000/app')
+	})
+
+	test('displays aero:// URLs as-is', () => {
+		expect(displayUrl('aero://settings')).toBe('aero://settings')
+		expect(displayUrl('aero://history')).toBe('aero://history')
 	})
 })

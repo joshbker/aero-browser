@@ -1,7 +1,7 @@
 <script>
 	import { invoke } from '@tauri-apps/api/core'
-	import { Lock, Globe } from 'lucide-svelte'
-	import { resolveInput } from '$lib/utils/url.js'
+	import { Lock, Globe, Settings } from 'lucide-svelte'
+	import { resolveInput, isAeroUrl } from '$lib/utils/url.js'
 
 	let { url = '', isLoading = false } = $props()
 
@@ -17,6 +17,7 @@
 	})
 
 	let isHttps = $derived(url?.startsWith('https://'))
+	let isInternal = $derived(isAeroUrl(url || ''))
 
 	async function handleSubmit(e) {
 		e.preventDefault()
@@ -58,7 +59,9 @@
 	<div class="flex items-center gap-2 flex-1 h-7 px-3 bg-neutral-900 rounded-full border border-neutral-700 focus-within:border-blue-500 transition-colors">
 		<!-- Security icon -->
 		<div class="shrink-0 text-neutral-500">
-			{#if isHttps}
+			{#if isInternal}
+				<Settings size={12} />
+			{:else if isHttps}
 				<Lock size={12} />
 			{:else}
 				<Globe size={12} />

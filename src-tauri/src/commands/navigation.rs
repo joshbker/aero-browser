@@ -2,6 +2,19 @@ use tauri::{command, AppHandle, Emitter, Manager};
 
 use crate::state::tab_state::TabManager;
 
+/// Convert an aero:// URL to the corresponding SvelteKit app route path.
+/// Returns None if the URL is not an aero:// URL.
+fn resolve_aero_url(url: &str) -> Option<String> {
+    if let Some(page) = url.strip_prefix("aero://") {
+        let page = page.trim_end_matches('/');
+        if page.is_empty() {
+            return Some("/".to_string());
+        }
+        return Some(format!("/{}", page));
+    }
+    None
+}
+
 /// Helper: update can_go_back/forward from nav_stack/nav_pos, then emit event.
 fn emit_nav_state(app: &AppHandle, label: &str) {
     let tab_manager = app.state::<TabManager>();
@@ -45,13 +58,25 @@ pub async fn navigate_to(
         .get_webview(&target_label)
         .ok_or("Tab webview not found")?;
 
-    let parsed_url: url::Url = url
-        .parse()
-        .map_err(|e| format!("Invalid URL: {}", e))?;
-
-    webview
-        .navigate(parsed_url)
-        .map_err(|e| e.to_string())?;
+    // Handle aero:// internal URLs — navigate to SvelteKit app route
+    if let Some(route) = resolve_aero_url(&url) {
+        // Construct the Tauri app URL for the given route
+        // On Linux: https://tauri.localhost/route, on Windows: tauri://localhost/route
+        let tauri_url = if cfg!(target_os = "windows") {
+            format!("tauri://localhost{}", route)
+        } else {
+            format!("https://tauri.localhost{}", route)
+        };
+        let parsed: url::Url = tauri_url
+            .parse()
+            .map_err(|e| format!("Invalid app URL: {}", e))?;
+        webview.navigate(parsed).map_err(|e| e.to_string())?;
+    } else {
+        let parsed_url: url::Url = url
+            .parse()
+            .map_err(|e| format!("Invalid URL: {}", e))?;
+        webview.navigate(parsed_url).map_err(|e| e.to_string())?;
+    }
 
     // Push onto nav stack (truncate any forward history)
     tab_manager.update_tab(&target_label, |tab| {

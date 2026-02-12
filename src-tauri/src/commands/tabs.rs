@@ -8,6 +8,29 @@ use crate::state::tab_state::{next_tab_label, TabInfo, TabManager};
 /// Keep in sync with CHROME_HEIGHT in src/lib/utils/constants.js
 const CHROME_HEIGHT: f64 = 76.0;
 
+/// Convert a Tauri app URL (tauri://localhost/settings) back to aero:// format.
+/// Returns the original URL if it's not a Tauri app URL.
+fn to_aero_url(url: &str) -> String {
+    // Tauri app URLs look like: tauri://localhost/path or https://tauri.localhost/path
+    let path = if let Some(path) = url.strip_prefix("tauri://localhost") {
+        Some(path)
+    } else if let Some(path) = url.strip_prefix("https://tauri.localhost") {
+        Some(path)
+    } else {
+        None
+    };
+
+    if let Some(path) = path {
+        let page = path.trim_start_matches('/').trim_end_matches('/');
+        // Only convert known internal pages
+        if page == "settings" || page == "history" || page == "bookmarks" {
+            return format!("aero://{}", page);
+        }
+    }
+
+    url.to_string()
+}
+
 /// Helper: get the content area size (below the chrome)
 fn get_content_size(app: &AppHandle) -> Result<(f64, f64), String> {
     let window = app.get_window("main").ok_or("Main window not found")?;
@@ -28,7 +51,12 @@ pub async fn tab_create(
     let label = next_tab_label();
     let url = url.unwrap_or_else(|| "https://www.google.com".to_string());
 
-    let webview_url = if url.starts_with("http://") || url.starts_with("https://") {
+    let webview_url = if url.starts_with("aero://") {
+        // Internal page — map to SvelteKit route
+        let page = url.strip_prefix("aero://").unwrap().trim_end_matches('/');
+        let route = if page.is_empty() { "/".to_string() } else { format!("/{}", page) };
+        WebviewUrl::App(route.into())
+    } else if url.starts_with("http://") || url.starts_with("https://") {
         WebviewUrl::External(url.parse().map_err(|e| format!("Invalid URL: {}", e))?)
     } else {
         let full_url = format!("https://{}", url);
@@ -62,7 +90,7 @@ pub async fn tab_create(
             };
 
             let tab_manager = app_for_load.state::<TabManager>();
-            let url_str = payload.url().to_string();
+            let url_str = to_aero_url(&payload.url().to_string());
             let label_clone = label_for_load.clone();
 
             tab_manager.update_tab(&label_clone, |tab| {
