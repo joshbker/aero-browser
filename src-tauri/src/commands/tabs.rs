@@ -2,11 +2,36 @@ use tauri::{command, AppHandle, Emitter, Manager, WebviewUrl};
 use tauri::webview::NewWindowResponse;
 use tauri::{LogicalPosition, LogicalSize};
 
+use crate::state::chrome_height::ChromeHeight;
 use crate::state::tab_state::{next_tab_label, TabInfo, TabManager};
+use crate::storage::database::Database;
 
-/// Chrome height in logical pixels (tab bar + toolbar)
-/// Keep in sync with CHROME_HEIGHT in src/lib/utils/constants.js
+/// Default chrome height in logical pixels (tab bar + toolbar)
+/// The actual height is dynamic via ChromeHeight state (changes when bookmarks bar toggles)
 const CHROME_HEIGHT: f64 = 76.0;
+
+/// Convert a Tauri app URL (tauri://localhost/settings) back to aero:// format.
+/// Returns the original URL if it's not a Tauri app URL.
+fn to_aero_url(url: &str) -> String {
+    // Tauri app URLs look like: tauri://localhost/path or https://tauri.localhost/path
+    let path = if let Some(path) = url.strip_prefix("tauri://localhost") {
+        Some(path)
+    } else if let Some(path) = url.strip_prefix("https://tauri.localhost") {
+        Some(path)
+    } else {
+        None
+    };
+
+    if let Some(path) = path {
+        let page = path.trim_start_matches('/').trim_end_matches('/');
+        // Only convert known internal pages
+        if page == "settings" || page == "history" || page == "bookmarks" {
+            return format!("aero://{}", page);
+        }
+    }
+
+    url.to_string()
+}
 
 /// Helper: get the content area size (below the chrome)
 fn get_content_size(app: &AppHandle) -> Result<(f64, f64), String> {
@@ -15,7 +40,19 @@ fn get_content_size(app: &AppHandle) -> Result<(f64, f64), String> {
     let scale = window.scale_factor().map_err(|e| e.to_string())?;
     let width = size.width as f64 / scale;
     let height = size.height as f64 / scale;
-    Ok((width, (height - CHROME_HEIGHT).max(0.0)))
+    // Use dynamic chrome height if available, fall back to constant
+    let chrome_h = app
+        .try_state::<ChromeHeight>()
+        .map(|ch| ch.get())
+        .unwrap_or(CHROME_HEIGHT);
+    Ok((width, (height - chrome_h).max(0.0)))
+}
+
+/// Get the current chrome height (for positioning content webviews)
+fn get_chrome_height(app: &AppHandle) -> f64 {
+    app.try_state::<ChromeHeight>()
+        .map(|ch| ch.get())
+        .unwrap_or(CHROME_HEIGHT)
 }
 
 /// Create a new tab webview and register it in state.
@@ -28,7 +65,12 @@ pub async fn tab_create(
     let label = next_tab_label();
     let url = url.unwrap_or_else(|| "https://www.google.com".to_string());
 
-    let webview_url = if url.starts_with("http://") || url.starts_with("https://") {
+    let webview_url = if url.starts_with("aero://") {
+        // Internal page — map to SvelteKit route
+        let page = url.strip_prefix("aero://").unwrap().trim_end_matches('/');
+        let route = if page.is_empty() { "/".to_string() } else { format!("/{}", page) };
+        WebviewUrl::App(route.into())
+    } else if url.starts_with("http://") || url.starts_with("https://") {
         WebviewUrl::External(url.parse().map_err(|e| format!("Invalid URL: {}", e))?)
     } else {
         let full_url = format!("https://{}", url);
@@ -62,7 +104,7 @@ pub async fn tab_create(
             };
 
             let tab_manager = app_for_load.state::<TabManager>();
-            let url_str = payload.url().to_string();
+            let url_str = to_aero_url(&payload.url().to_string());
             let label_clone = label_for_load.clone();
 
             tab_manager.update_tab(&label_clone, |tab| {
@@ -107,6 +149,27 @@ pub async fn tab_create(
                 "can_go_back": can_go_back,
                 "can_go_forward": can_go_forward,
             }));
+
+            // Record page visit in history (skip internal and blank pages)
+            if !loading
+                && !url_str.starts_with("aero://")
+                && !url_str.starts_with("about:")
+                && !url_str.starts_with("tauri://")
+                && !url_str.starts_with("https://tauri.localhost")
+            {
+                if let Some(db) = app_for_load.try_state::<Database>() {
+                    let title = tab_manager
+                        .get_tab(&label_clone)
+                        .and_then(|t| {
+                            if t.title.is_empty() || t.title == "New Tab" {
+                                None
+                            } else {
+                                Some(t.title)
+                            }
+                        });
+                    let _ = db.history_add_visit(&url_str, title.as_deref());
+                }
+            }
 
             // When page finishes loading, inject Aero helpers (title + hover)
             if !loading {
@@ -200,7 +263,7 @@ pub async fn tab_create(
     window
         .add_child(
             webview,
-            LogicalPosition::new(0.0, CHROME_HEIGHT),
+            LogicalPosition::new(0.0, get_chrome_height(&app)),
             LogicalSize::new(width, content_height),
         )
         .map_err(|e| format!("Failed to create tab webview: {}", e))?;
@@ -329,9 +392,10 @@ pub fn tab_resize_all(app: AppHandle) -> Result<(), String> {
     let tab_manager = app.state::<TabManager>();
     let (width, content_height) = get_content_size(&app)?;
 
+    let chrome_h = get_chrome_height(&app);
     for label in tab_manager.get_tab_labels() {
         if let Some(wv) = app.get_webview(&label) {
-            let _ = wv.set_position(LogicalPosition::new(0.0, CHROME_HEIGHT));
+            let _ = wv.set_position(LogicalPosition::new(0.0, chrome_h));
             let _ = wv.set_size(LogicalSize::new(width, content_height));
         }
     }

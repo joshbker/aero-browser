@@ -138,55 +138,55 @@ Implementation order follows dependency chain. Each feature builds on the previo
 
 ### 2.0 Database Foundation
 
-- [ ] Create `src-tauri/src/storage/database.rs` — `Database` struct wrapping `Mutex<Connection>`
-- [ ] Implement schema init with migrations via `PRAGMA user_version`
-- [ ] Create all tables: bookmarks, history, settings, permissions, autofill_profiles
-- [ ] Update `src-tauri/src/storage/mod.rs` — declare submodules
-- [ ] Update `src-tauri/src/lib.rs` — open DB at `{app_data_dir}/default/browser.db`, manage as state
-- [ ] Write unit tests for database init and migration
+- [x] Create `src-tauri/src/storage/database.rs` — `Database` struct wrapping `Mutex<Connection>`
+- [x] Implement schema init with migrations via `PRAGMA user_version`
+- [x] Create all tables: bookmarks, history, settings, permissions, autofill_profiles
+- [x] Update `src-tauri/src/storage/mod.rs` — declare submodules
+- [x] Update `src-tauri/src/lib.rs` — open DB at `{app_data_dir}/default/browser.db`, manage as state
+- [x] Write unit tests for database init and migration
 
 ### 2.1 Settings
 
-- [ ] Create `src-tauri/src/storage/settings.rs` — get/set/get_all + seed defaults
-- [ ] Create `src-tauri/src/commands/settings.rs` — `settings_get`, `settings_set`, `settings_get_all`
-- [ ] Register settings commands in `lib.rs` and `commands/mod.rs`
-- [ ] Create `src/lib/stores/settings.js` — writable store with IPC
-- [ ] Create `src/routes/settings/+page.svelte` — settings UI (General, Search, Appearance, Privacy)
-- [ ] Wire up `aero://settings` navigation (detect in `navigate_to` → `WebviewUrl::App("/settings")`)
-- [ ] Update `src/lib/utils/url.js` — handle `aero://` URLs in `isValidUrl`, `resolveInput`, `displayUrl`
-- [ ] Update address bar to display `aero://settings` for internal pages
-- [ ] Write unit tests for settings storage
+- [x] Create `src-tauri/src/storage/settings.rs` — get/set/get_all + seed defaults
+- [x] Create `src-tauri/src/commands/settings.rs` — `settings_get`, `settings_set`, `settings_get_all`
+- [x] Register settings commands in `lib.rs` and `commands/mod.rs`
+- [x] Create `src/lib/stores/settings.js` — writable store with IPC
+- [x] Create `src/routes/settings/+page.svelte` — settings UI (General, Search, Appearance, Privacy)
+- [x] Wire up `aero://settings` navigation (detect in `navigate_to` → `WebviewUrl::App("/settings")`)
+- [x] Update `src/lib/utils/url.js` — handle `aero://` URLs in `isValidUrl`, `resolveInput`, `displayUrl`
+- [x] Update address bar to display `aero://settings` for internal pages
+- [x] Write unit tests for settings storage
 
 ### 2.2 History
 
-- [ ] Create `src-tauri/src/storage/history.rs` — `add_visit` (upsert), `search`, `get_recent`, `delete`, `clear(timeframe)`
-- [ ] Create `src-tauri/src/commands/history.rs` — IPC commands
-- [ ] Register history commands in `lib.rs` and `commands/mod.rs`
-- [ ] Hook `add_visit()` into `on_page_load` Finished handler in `tabs.rs` (skip `aero://`, `about:blank`, incognito)
-- [ ] Create `src/lib/stores/history.js` — search, getRecent, delete, clear
-- [ ] Create `src/routes/history/+page.svelte` — search bar, date-grouped list, clear data button
-- [ ] Wire up `aero://history` navigation
-- [ ] Add `Ctrl+H` global shortcut to open history
-- [ ] Address bar autocomplete — query history as user types, show dropdown suggestions
-- [ ] Write unit tests for history storage
+- [x] Create `src-tauri/src/storage/history.rs` — `add_visit` (upsert), `search`, `get_recent`, `delete`, `clear(timeframe)`
+- [x] Create `src-tauri/src/commands/history.rs` — IPC commands
+- [x] Register history commands in `lib.rs` and `commands/mod.rs`
+- [x] Hook `add_visit()` into `on_page_load` Finished handler in `tabs.rs` (skip `aero://`, `about:blank`, incognito)
+- [x] Create `src/lib/stores/history.js` — search, getRecent, delete, clear
+- [x] Create `src/routes/history/+page.svelte` — search bar, date-grouped list, clear data button
+- [x] Wire up `aero://history` navigation
+- [x] Add `Ctrl+H` global shortcut to open history
+- [x] Address bar autocomplete — query history as user types, show dropdown suggestions
+- [x] Write unit tests for history storage
 
 ### 2.3 Bookmarks
 
-- [ ] Create `src-tauri/src/storage/bookmarks.rs` — CRUD, tree ops, search, import/export HTML
-- [ ] Create `src-tauri/src/commands/bookmarks.rs` — IPC commands + `bookmark_is_bookmarked(url)`
-- [ ] Register bookmark commands in `lib.rs` and `commands/mod.rs`
-- [ ] Seed root folders on first run: "Bookmarks Bar", "Other Bookmarks"
-- [ ] Create `src/lib/stores/bookmarks.js` — bar items, add/remove/toggle
-- [ ] Create `src/lib/components/BookmarkBar.svelte` — horizontal bar below toolbar
+- [x] Create `src-tauri/src/storage/bookmarks.rs` — CRUD, tree ops, search, import/export HTML
+- [x] Create `src-tauri/src/commands/bookmarks.rs` — IPC commands + `bookmark_is_bookmarked(url)`
+- [x] Register bookmark commands in `lib.rs` and `commands/mod.rs`
+- [x] Seed root folders on first run: "Bookmarks Bar", "Other Bookmarks"
+- [x] Create `src/lib/stores/bookmarks.js` — bar items, add/remove/toggle
+- [x] Create `src/lib/components/BookmarkBar.svelte` — horizontal bar below toolbar
 - [ ] Implement folder dropdowns using popup window pattern
-- [ ] Add star icon to `AddressBar.svelte` — filled/outline to toggle bookmark
-- [ ] Create `src/routes/bookmarks/+page.svelte` — full tree manager with search, import/export
-- [ ] Wire up `aero://bookmarks` navigation
-- [ ] Make CHROME_HEIGHT dynamic — store in Tauri state, push updates via events when bookmarks bar toggles
-- [ ] Update `tab_resize_all` to read dynamic chrome height
-- [ ] Add `Ctrl+D` shortcut to bookmark current page
-- [ ] Add `Ctrl+Shift+B` shortcut to toggle bookmarks bar
-- [ ] Write unit tests for bookmark storage
+- [x] Add star icon to `AddressBar.svelte` — filled/outline to toggle bookmark
+- [x] Create `src/routes/bookmarks/+page.svelte` — full tree manager with search, import/export
+- [x] Wire up `aero://bookmarks` navigation
+- [x] Make CHROME_HEIGHT dynamic — store in Tauri state, push updates via events when bookmarks bar toggles
+- [x] Update `tab_resize_all` to read dynamic chrome height
+- [x] Add `Ctrl+D` shortcut to bookmark current page
+- [x] Add `Ctrl+Shift+B` shortcut to toggle bookmarks bar
+- [x] Write unit tests for bookmark storage
 
 ### 2.4 Multiple Windows
 

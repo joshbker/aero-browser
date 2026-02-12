@@ -1,1 +1,4 @@
-// Storage modules will be added here
+pub mod bookmarks;
+pub mod database;
+pub mod history;
+pub mod settings;
