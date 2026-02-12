@@ -111,68 +111,88 @@ Run through this after any significant changes. Launch with `npm run tauri dev`.
 
 ---
 
-## Manual Test Checklist — Phase 2
+## Manual Test Checklist — Phase 2 (2.0–2.3)
+
+### Known Issues
+- **aero:// URL display**: Address bar may show `tauri://localhost/settings` instead of `aero://settings` — the `to_aero_url()` converter exists in Rust but may not apply to all tab URL updates
+- **Chrome height on startup**: If bookmarks bar was hidden, first frame may briefly show wrong chrome height before settings load
+- **Bookmark folder dropdowns**: Not yet implemented — folders show in bar but aren't clickable (TASKS.md 2.3 item unchecked)
+- **Bookmark import/export UI**: Storage functions exist but no UI buttons wired up in manager page
+- **Bookmark drag-and-drop**: `bookmark_move()` exists in storage but no drag UI in manager
+- **Bookmark folder creation**: No "New Folder" button in manager UI — folders can only be created via storage API
+- **Settings privacy section**: Placeholder only ("Coming in future update")
 
 ### Internal Pages (aero://)
-- [ ] Typing `aero://settings` in address bar opens settings page
-- [ ] Typing `aero://history` opens history page
-- [ ] Typing `aero://bookmarks` opens bookmarks manager
-- [ ] Address bar displays `aero://settings` (not `tauri://localhost/settings`)
-- [ ] Internal pages have proper styling (dark theme, consistent with browser chrome)
+- [ ] Typing `aero://settings` in address bar navigates to settings page
+- [ ] Typing `aero://history` navigates to history page
+- [ ] Typing `aero://bookmarks` navigates to bookmarks manager
+- [ ] Internal pages render with dark theme styling
 - [ ] Back/forward navigation works between internal pages and regular sites
+- [ ] Internal pages are NOT recorded in history
 
 ### Settings (aero://settings)
-- [ ] Settings page loads and displays all sections (General, Search, Appearance, Privacy)
-- [ ] Changing search engine persists after restart
-- [ ] Changing homepage persists after restart
-- [ ] Toggle "Show bookmarks bar" hides/shows the bookmark bar
-- [ ] Toggle "Show status bar" hides/shows the status bar
-- [ ] Settings saved in one tab reflect in other tabs / new tabs
+- [ ] Settings page loads with sidebar (General, Search, Appearance, Privacy sections)
+- [ ] General section: homepage, new tab page, restore on startup, download path, ask download location toggle
+- [ ] Search section: search engine dropdown (Google, DuckDuckGo, Bing, Brave Search)
+- [ ] Appearance section: theme selector, zoom slider (50–200%), show bookmarks bar toggle, show status bar toggle
+- [ ] Privacy section: shows placeholder text
+- [ ] Changing a setting saves immediately (no save button needed)
+- [ ] Settings persist after app restart
+- [ ] Toggle "Show bookmarks bar" hides/shows the bookmark bar and resizes content webview
 
 ### History
-- [ ] Visiting a page records it in history
-- [ ] `Ctrl+H` opens history page
-- [ ] History page shows visited sites grouped by date
-- [ ] Search bar filters history entries by URL and title
+- [ ] Visiting an external page records it in history
+- [ ] `Ctrl+H` opens history page in current tab
+- [ ] History page shows entries with time, title, URL
+- [ ] Entries grouped by date (Today, Yesterday, or full date)
+- [ ] Search bar filters entries by URL and title in real-time
 - [ ] Clicking a history entry navigates to that URL
-- [ ] Delete button removes individual history entries
-- [ ] "Clear browsing data" clears history for selected timeframe (all, last hour, last day, last week)
-- [ ] `aero://` and `about:blank` pages are NOT recorded in history
+- [ ] Delete button (trash icon) removes individual entries
+- [ ] "Clear browsing data" button opens dialog with: Last hour, Last 24h, Last 7 days, All time
+- [ ] Clearing data removes entries and updates the list
+- [ ] `aero://`, `about:blank`, and `tauri://` pages are NOT recorded
+- [ ] Pages with empty or "New Tab" titles are skipped
+- [ ] Revisiting a URL increments visit_count and updates last_visited
 - [ ] History persists after app restart
-- [ ] Visiting the same URL updates visit count and last_visited timestamp
 
 ### Address Bar Autocomplete
-- [ ] Typing in address bar shows dropdown with matching history entries
-- [ ] Suggestions match by URL and title
+- [ ] Typing in address bar shows dropdown of up to 6 matching history entries
+- [ ] Suggestions appear after 150ms debounce
+- [ ] Suggestions match by URL and title substring
+- [ ] Arrow Up/Down navigates between suggestions
+- [ ] Enter with suggestion selected navigates to that URL
 - [ ] Clicking a suggestion navigates to that URL
-- [ ] Pressing Enter with a suggestion selected navigates to it
 - [ ] Dropdown disappears when address bar loses focus
-- [ ] Dropdown disappears when pressing Escape
 
 ### Bookmarks
-- [ ] `Ctrl+D` bookmarks the current page
-- [ ] Star icon in address bar fills when page is bookmarked
-- [ ] Clicking filled star removes the bookmark
+- [ ] `Ctrl+D` toggles bookmark for current page (adds if not bookmarked, removes if bookmarked)
+- [ ] Star icon appears in address bar only for http/https pages (not internal pages)
+- [ ] Star is filled yellow when current page is bookmarked, outline grey when not
+- [ ] New bookmarks default to "Bookmarks Bar" folder
 - [ ] Bookmarks persist after app restart
-- [ ] `aero://bookmarks` shows the full bookmark manager
-- [ ] Can create folders in bookmark manager
-- [ ] Can rename bookmarks and folders
-- [ ] Can delete bookmarks and folders
-- [ ] Can move bookmarks between folders
-- [ ] Search bar filters bookmarks by title and URL
-- [ ] Import bookmarks from HTML file works
-- [ ] Export bookmarks to HTML file works
+- [ ] `aero://bookmarks` shows bookmark manager with tree view
+- [ ] Root folders visible: "Bookmarks Bar" and "Other Bookmarks" with child counts
+- [ ] Folders expand/collapse with chevron icons
+- [ ] Nested subfolders expand/collapse (2 levels deep in UI)
+- [ ] Edit button (pencil icon) on hover reveals inline title/URL editing
+- [ ] Save/Cancel buttons appear during inline edit
+- [ ] Delete button (trash icon) on hover removes bookmark
+- [ ] Deleting a folder cascades to delete all children
+- [ ] Search bar filters bookmarks by title and URL (flat results, not tree)
+- [ ] Click on a bookmark in manager navigates to its URL
 
 ### Bookmarks Bar
 - [ ] `Ctrl+Shift+B` toggles bookmarks bar visibility
-- [ ] Bookmarks bar appears below the toolbar when visible
-- [ ] Content webview repositions correctly when bar shows/hides (no overlap or gap)
-- [ ] Clicking a bookmark in the bar navigates to that URL
-- [ ] Folders in the bookmarks bar show a dropdown on click
-- [ ] Right-click on bookmark bar items shows context menu (edit, delete)
-- [ ] Adding a bookmark to "Bookmarks Bar" folder shows it in the bar
+- [ ] Bar appears below toolbar (28px height) when visible
+- [ ] Content webview repositions correctly when bar shows/hides (dynamic CHROME_HEIGHT)
+- [ ] Bar shows items from "Bookmarks Bar" folder with favicons
+- [ ] Folders show folder icon, bookmarks show Google S2 favicon
+- [ ] Clicking a bookmark navigates to its URL
+- [ ] Long titles truncate with ellipsis
+- [ ] Empty state shows "No bookmarks yet — press Ctrl+D to add one"
+- [ ] Adding a bookmark (Ctrl+D) on a page updates the bar
 
 ### Keyboard Shortcuts (Phase 2 additions)
-- [ ] `Ctrl+H` — opens history
-- [ ] `Ctrl+D` — bookmarks current page
-- [ ] `Ctrl+Shift+B` — toggles bookmarks bar
+- [ ] `Ctrl+H` — opens history in current tab
+- [ ] `Ctrl+D` — toggles bookmark for current page
+- [ ] `Ctrl+Shift+B` — toggles bookmarks bar visibility
