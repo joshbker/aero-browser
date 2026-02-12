@@ -3,6 +3,7 @@ mod state;
 mod storage;
 
 use state::tab_state::TabManager;
+use storage::database::Database;
 use tauri::{LogicalPosition, LogicalSize, Manager, WebviewUrl};
 
 /// Chrome height — must match CHROME_HEIGHT in commands/tabs.rs and frontend constants.js
@@ -43,6 +44,20 @@ pub fn run() {
             commands::find::__find_result,
         ])
         .setup(|app| {
+            // Open the database in {app_data_dir}/default/browser.db
+            let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+            let profile_dir = app_data.join("default");
+            std::fs::create_dir_all(&profile_dir)
+                .map_err(|e| format!("Failed to create profile dir: {}", e))?;
+            let db_path = profile_dir.join("browser.db");
+            let db = Database::open(
+                db_path
+                    .to_str()
+                    .ok_or_else(|| "Invalid DB path".to_string())?,
+            )
+            .map_err(|e| format!("Failed to open database: {}", e))?;
+            app.manage(db);
+
             let width = 1280.0_f64;
             let height = 800.0_f64;
 

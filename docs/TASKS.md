@@ -138,12 +138,12 @@ Implementation order follows dependency chain. Each feature builds on the previo
 
 ### 2.0 Database Foundation
 
-- [ ] Create `src-tauri/src/storage/database.rs` — `Database` struct wrapping `Mutex<Connection>`
-- [ ] Implement schema init with migrations via `PRAGMA user_version`
-- [ ] Create all tables: bookmarks, history, settings, permissions, autofill_profiles
-- [ ] Update `src-tauri/src/storage/mod.rs` — declare submodules
-- [ ] Update `src-tauri/src/lib.rs` — open DB at `{app_data_dir}/default/browser.db`, manage as state
-- [ ] Write unit tests for database init and migration
+- [x] Create `src-tauri/src/storage/database.rs` — `Database` struct wrapping `Mutex<Connection>`
+- [x] Implement schema init with migrations via `PRAGMA user_version`
+- [x] Create all tables: bookmarks, history, settings, permissions, autofill_profiles
+- [x] Update `src-tauri/src/storage/mod.rs` — declare submodules
+- [x] Update `src-tauri/src/lib.rs` — open DB at `{app_data_dir}/default/browser.db`, manage as state
+- [x] Write unit tests for database init and migration
 
 ### 2.1 Settings
 
