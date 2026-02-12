@@ -108,3 +108,71 @@ Run through this after any significant changes. Launch with `npm run tauri dev`.
 - [ ] Typing highlights matches on the page
 - [ ] Escape closes find bar
 - [ ] Find bar doesn't interfere with other UI elements
+
+---
+
+## Manual Test Checklist — Phase 2
+
+### Internal Pages (aero://)
+- [ ] Typing `aero://settings` in address bar opens settings page
+- [ ] Typing `aero://history` opens history page
+- [ ] Typing `aero://bookmarks` opens bookmarks manager
+- [ ] Address bar displays `aero://settings` (not `tauri://localhost/settings`)
+- [ ] Internal pages have proper styling (dark theme, consistent with browser chrome)
+- [ ] Back/forward navigation works between internal pages and regular sites
+
+### Settings (aero://settings)
+- [ ] Settings page loads and displays all sections (General, Search, Appearance, Privacy)
+- [ ] Changing search engine persists after restart
+- [ ] Changing homepage persists after restart
+- [ ] Toggle "Show bookmarks bar" hides/shows the bookmark bar
+- [ ] Toggle "Show status bar" hides/shows the status bar
+- [ ] Settings saved in one tab reflect in other tabs / new tabs
+
+### History
+- [ ] Visiting a page records it in history
+- [ ] `Ctrl+H` opens history page
+- [ ] History page shows visited sites grouped by date
+- [ ] Search bar filters history entries by URL and title
+- [ ] Clicking a history entry navigates to that URL
+- [ ] Delete button removes individual history entries
+- [ ] "Clear browsing data" clears history for selected timeframe (all, last hour, last day, last week)
+- [ ] `aero://` and `about:blank` pages are NOT recorded in history
+- [ ] History persists after app restart
+- [ ] Visiting the same URL updates visit count and last_visited timestamp
+
+### Address Bar Autocomplete
+- [ ] Typing in address bar shows dropdown with matching history entries
+- [ ] Suggestions match by URL and title
+- [ ] Clicking a suggestion navigates to that URL
+- [ ] Pressing Enter with a suggestion selected navigates to it
+- [ ] Dropdown disappears when address bar loses focus
+- [ ] Dropdown disappears when pressing Escape
+
+### Bookmarks
+- [ ] `Ctrl+D` bookmarks the current page
+- [ ] Star icon in address bar fills when page is bookmarked
+- [ ] Clicking filled star removes the bookmark
+- [ ] Bookmarks persist after app restart
+- [ ] `aero://bookmarks` shows the full bookmark manager
+- [ ] Can create folders in bookmark manager
+- [ ] Can rename bookmarks and folders
+- [ ] Can delete bookmarks and folders
+- [ ] Can move bookmarks between folders
+- [ ] Search bar filters bookmarks by title and URL
+- [ ] Import bookmarks from HTML file works
+- [ ] Export bookmarks to HTML file works
+
+### Bookmarks Bar
+- [ ] `Ctrl+Shift+B` toggles bookmarks bar visibility
+- [ ] Bookmarks bar appears below the toolbar when visible
+- [ ] Content webview repositions correctly when bar shows/hides (no overlap or gap)
+- [ ] Clicking a bookmark in the bar navigates to that URL
+- [ ] Folders in the bookmarks bar show a dropdown on click
+- [ ] Right-click on bookmark bar items shows context menu (edit, delete)
+- [ ] Adding a bookmark to "Bookmarks Bar" folder shows it in the bar
+
+### Keyboard Shortcuts (Phase 2 additions)
+- [ ] `Ctrl+H` — opens history
+- [ ] `Ctrl+D` — bookmarks current page
+- [ ] `Ctrl+Shift+B` — toggles bookmarks bar
