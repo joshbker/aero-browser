@@ -134,17 +134,113 @@ Legend: `[ ]` todo · `[x]` done · `[!]` blocked · `[~]` in progress
 
 ## Phase 2: Essential Features
 
-_Tasks to be detailed when Phase 1 is complete._
+Implementation order follows dependency chain. Each feature builds on the previous.
 
-- [ ] Bookmarks system
-- [ ] Browsing history with search
-- [ ] Settings page (`aero://settings`)
-- [ ] Multiple windows (Ctrl+N)
-- [ ] Private/incognito mode
-- [ ] Print support
-- [ ] Site permissions management
-- [ ] Certificate/security info display
-- [ ] Basic autofill
+### 2.0 Database Foundation
+
+- [ ] Create `src-tauri/src/storage/database.rs` — `Database` struct wrapping `Mutex<Connection>`
+- [ ] Implement schema init with migrations via `PRAGMA user_version`
+- [ ] Create all tables: bookmarks, history, settings, permissions, autofill_profiles
+- [ ] Update `src-tauri/src/storage/mod.rs` — declare submodules
+- [ ] Update `src-tauri/src/lib.rs` — open DB at `{app_data_dir}/default/browser.db`, manage as state
+- [ ] Write unit tests for database init and migration
+
+### 2.1 Settings
+
+- [ ] Create `src-tauri/src/storage/settings.rs` — get/set/get_all + seed defaults
+- [ ] Create `src-tauri/src/commands/settings.rs` — `settings_get`, `settings_set`, `settings_get_all`
+- [ ] Register settings commands in `lib.rs` and `commands/mod.rs`
+- [ ] Create `src/lib/stores/settings.js` — writable store with IPC
+- [ ] Create `src/routes/settings/+page.svelte` — settings UI (General, Search, Appearance, Privacy)
+- [ ] Wire up `aero://settings` navigation (detect in `navigate_to` → `WebviewUrl::App("/settings")`)
+- [ ] Update `src/lib/utils/url.js` — handle `aero://` URLs in `isValidUrl`, `resolveInput`, `displayUrl`
+- [ ] Update address bar to display `aero://settings` for internal pages
+- [ ] Write unit tests for settings storage
+
+### 2.2 History
+
+- [ ] Create `src-tauri/src/storage/history.rs` — `add_visit` (upsert), `search`, `get_recent`, `delete`, `clear(timeframe)`
+- [ ] Create `src-tauri/src/commands/history.rs` — IPC commands
+- [ ] Register history commands in `lib.rs` and `commands/mod.rs`
+- [ ] Hook `add_visit()` into `on_page_load` Finished handler in `tabs.rs` (skip `aero://`, `about:blank`, incognito)
+- [ ] Create `src/lib/stores/history.js` — search, getRecent, delete, clear
+- [ ] Create `src/routes/history/+page.svelte` — search bar, date-grouped list, clear data button
+- [ ] Wire up `aero://history` navigation
+- [ ] Add `Ctrl+H` global shortcut to open history
+- [ ] Address bar autocomplete — query history as user types, show dropdown suggestions
+- [ ] Write unit tests for history storage
+
+### 2.3 Bookmarks
+
+- [ ] Create `src-tauri/src/storage/bookmarks.rs` — CRUD, tree ops, search, import/export HTML
+- [ ] Create `src-tauri/src/commands/bookmarks.rs` — IPC commands + `bookmark_is_bookmarked(url)`
+- [ ] Register bookmark commands in `lib.rs` and `commands/mod.rs`
+- [ ] Seed root folders on first run: "Bookmarks Bar", "Other Bookmarks"
+- [ ] Create `src/lib/stores/bookmarks.js` — bar items, add/remove/toggle
+- [ ] Create `src/lib/components/BookmarkBar.svelte` — horizontal bar below toolbar
+- [ ] Implement folder dropdowns using popup window pattern
+- [ ] Add star icon to `AddressBar.svelte` — filled/outline to toggle bookmark
+- [ ] Create `src/routes/bookmarks/+page.svelte` — full tree manager with search, import/export
+- [ ] Wire up `aero://bookmarks` navigation
+- [ ] Make CHROME_HEIGHT dynamic — store in Tauri state, push updates via events when bookmarks bar toggles
+- [ ] Update `tab_resize_all` to read dynamic chrome height
+- [ ] Add `Ctrl+D` shortcut to bookmark current page
+- [ ] Add `Ctrl+Shift+B` shortcut to toggle bookmarks bar
+- [ ] Write unit tests for bookmark storage
+
+### 2.4 Multiple Windows
+
+- [ ] Create `src-tauri/src/commands/windows.rs` — `window_create`, `window_close`
+- [ ] Add `window_id` field to `TabInfo` in `tab_state.rs`
+- [ ] Refactor `active_tab` to per-window `HashMap<String, Option<String>>`
+- [ ] Extract window creation into reusable `create_browser_window(app, id)` in `lib.rs`
+- [ ] Update tab commands to accept/use `window_id`
+- [ ] Update `src/lib/stores/tabs.js` — filter tabs by window_id
+- [ ] Pass window_id to each UI webview via query param
+- [ ] Handle window close — close all child tab webviews, exit app when last window closes
+- [ ] Add `Ctrl+N` global shortcut for new window
+- [ ] Multi-window state sync: Rust emits global events for shared data changes
+
+### 2.5 Certificate/Security Info
+
+- [ ] Create `src-tauri/src/commands/security.rs` — `security_get_info(url)` fetches TLS cert info
+- [ ] Add `reqwest` with `rustls-tls` feature to `Cargo.toml`
+- [ ] Register security commands in `lib.rs` and `commands/mod.rs`
+- [ ] Click padlock in address bar → popup window showing connection type, cert issuer, validity
+- [ ] Enhance padlock icon states: secure, insecure, mixed content
+
+### 2.6 Incognito/Private Mode (depends on 2.4)
+
+- [ ] Extend `window_create` with `incognito: bool` parameter
+- [ ] Incognito tab webviews use `.incognito(true)` on `WebviewBuilder`
+- [ ] Add `is_incognito: bool` to `TabInfo`
+- [ ] Skip history recording for incognito tabs in `on_page_load`
+- [ ] Visual differentiation — darker tab bar, "Private" label in incognito windows
+- [ ] Add `Ctrl+Shift+N` shortcut for new incognito window
+- [ ] All data discarded on window close (WebView2 handles automatically)
+
+### 2.7 Permissions
+
+- [ ] Add `permissions` table to DB schema (origin, permission type, state)
+- [ ] Create `src-tauri/src/storage/permissions.rs` — CRUD per origin+permission
+- [ ] Create `src-tauri/src/commands/permissions.rs` — IPC commands
+- [ ] Register permissions commands in `lib.rs` and `commands/mod.rs`
+- [ ] Implement permission prompt popup when site requests camera/mic/location/notifications
+- [ ] Remember decisions per-origin in DB
+- [ ] Add permissions management section to settings page
+- [ ] Write unit tests for permissions storage
+
+### 2.8 Autofill
+
+- [ ] Add `autofill_profiles` table to DB schema
+- [ ] Create `src-tauri/src/storage/autofill.rs` — CRUD with encryption (aes-gcm or Windows DPAPI)
+- [ ] Add `aes-gcm`, `rand` crates to `Cargo.toml`
+- [ ] Create `src-tauri/src/commands/autofill.rs` — IPC commands + `autofill_get_suggestions(field_type)`
+- [ ] Register autofill commands in `lib.rs` and `commands/mod.rs`
+- [ ] Extend JS injection in `tabs.rs` to detect `autocomplete` inputs
+- [ ] Show autofill dropdown on input focus (injected DOM in content webview)
+- [ ] Add autofill management section to settings page
+- [ ] Write unit tests for autofill storage
 
 ---
 

@@ -137,6 +137,34 @@ export const examples = createExampleStore();
 - Async commands need `#[command(async)]` or just use `async fn`
 - Window events and webview events have different APIs in v2
 
+### Multi-Webview Gotchas (learned the hard way)
+
+- `auto_resize()` on child webviews can cause them to overlap the UI webview — avoid it, handle resize manually via `on_window_event(WindowEvent::Resized)`
+- When using manual window creation (empty `windows: []` in tauri.conf.json), the SvelteKit app runs in a child webview (`browser-ui`), NOT the default window webview
+- `data-tauri-drag-region` does NOT work on child webviews — must use `Window.startDragging()` manually
+- Content webviews (tabs) MUST be created with `async fn` to avoid WebView2 deadlock on Windows
+- Capabilities must include `webviews: ["browser-ui"]` since the UI runs in a named child webview
+- Content webviews can call back to Rust via `window.__TAURI_INTERNALS__.invoke()` (requires `withGlobalTauri: true` in tauri.conf.json)
+
+### Keyboard Shortcuts
+
+- Local `keydown` listeners in the UI webview don't fire when a content webview has focus
+- Use `@tauri-apps/plugin-global-shortcut` for shortcuts that must work regardless of focus (Ctrl+T, Ctrl+W, etc.)
+- **Never register Escape as a global shortcut** — it hijacks the key system-wide. Use a local `keydown` listener instead
+- Requires `tauri-plugin-global-shortcut` in Cargo.toml + permissions in capabilities
+
+### Title & Favicon Detection
+
+- `on_document_title_changed` isn't reliably available on `WebviewBuilder` — inject JS via `webview.eval()` on page load finish
+- Use `MutationObserver` on the `<title>` element for dynamic title changes
+
+### Overlay UI (Context Menus, Dropdowns, Popups)
+
+- WebView2 content webviews ALWAYS render on top of UI webview — you cannot overlay UI elements on top of content
+- Use the **popup window pattern**: create a separate borderless, always-on-top OS window (see `ADR-009` in `docs/ARCHITECTURE.md`)
+- Popup webviews on `about:blank` don't have `__TAURI_INTERNALS__` — use navigation-based IPC: `onclick → window.location = "aero://action/..."` + `on_navigation` interception
+- Auto-dismiss via `WindowEvent::Focused(false)` on popup, `WindowEvent::Moved`/`Resized` on main window
+
 ### SvelteKit + Tauri
 
 - SvelteKit runs in SSG mode for Tauri — make sure `adapter-static` is configured
@@ -155,21 +183,33 @@ export const examples = createExampleStore();
 - All user data paths should use Tauri's `appDataDir` — never hardcode paths
 - Test on Windows — this is a Windows-first project (WebView2 is Windows-only, though Tauri uses WebKit on macOS/Linux)
 - Keep the main thread free — heavy operations (DB queries, file I/O, filter list parsing) should be async in Rust
+- Use `e.detail === 2` on mousedown to detect double-click without timers (browser native click count)
+
+### Git Commits
+
+- NEVER add `Co-Authored-By` lines — commits should be authored solely by the user's git account
+- Use conventional commit messages (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`)
 
 ---
 
 ## Testing Approach
 
-- **Rust**: Unit tests for storage, adblock engine, URL parsing — run with `cargo test`
-- **Frontend**: Manual testing primarily — the browser UI is heavily tied to Tauri's runtime so unit testing components in isolation has limited value
-- **Integration**: Test IPC commands work correctly end-to-end by running the app with `npm run tauri dev`
+- **Rust**: Unit tests for storage, state, URL parsing — `cd src-tauri && cargo test`
+- **JavaScript**: Vitest for utility functions — `npm test` (single run) or `npm run test:watch`
+- **Manual**: Comprehensive checklist in `docs/TESTING.md` — run through after completing a phase or significant feature
+- **Integration**: Test IPC commands end-to-end by running the app with `npm run tauri dev`
+
+### Build Environment (Windows)
+
+- Rust MSVC linker (`link.exe`) not found in Git Bash — use **PowerShell or cmd.exe** for `npm run tauri dev` and `cargo test`
+- Need "Desktop development with C++" workload in VS installer
 
 ---
 
 ## Build & Run
 
 ```bash
-# Development
+# Development (use PowerShell/cmd on Windows)
 npm run tauri dev
 
 # Production build
@@ -177,6 +217,10 @@ npm run tauri build
 
 # Run Rust tests
 cd src-tauri && cargo test
+
+# Run JS tests
+npm test          # single run
+npm run test:watch  # watch mode
 
 # Run frontend only (no Tauri — limited use)
 npm run dev

@@ -180,26 +180,91 @@ Need custom pages for new tab, settings, history, bookmarks, etc.
 
 ### Decision
 
-Register a custom `aero://` protocol handler in Tauri. Internal pages are served from bundled HTML/JS/CSS assets.
+Internal pages are SvelteKit routes loaded in content webviews via `WebviewUrl::App("/settings")` etc. No custom protocol registration needed.
 
 ### Pages
 
-| URL | Purpose |
-|-----|---------|
-| `aero://newtab` | New tab page |
-| `aero://settings` | Settings page |
-| `aero://history` | History page |
-| `aero://bookmarks` | Bookmark manager |
-| `aero://downloads` | Downloads page |
-| `aero://about` | About/version info |
+| URL (display) | SvelteKit route | Purpose |
+|-----|---------|---------|
+| `aero://newtab` | `/` | New tab page |
+| `aero://settings` | `/settings` | Settings page |
+| `aero://history` | `/history` | History page |
+| `aero://bookmarks` | `/bookmarks` | Bookmark manager |
+| `aero://downloads` | `/downloads` | Downloads page |
+| `aero://about` | `/about` | About/version info |
 
 ### Implementation
 
-Internal pages can either be:
-1. **Part of the SvelteKit app** — rendered in the main webview, hiding the content webview
-2. **Separate HTML files** — loaded in the content webview via the custom protocol
+Internal pages are loaded as SvelteKit routes in the content webview using `WebviewUrl::App("/route".into())`. This means:
 
-Option 1 is simpler and allows internal pages to use the same component library and stores. The content webview area simply shows a SvelteKit route instead of a web page.
+1. They have full IPC access (`invoke()`, `listen()`) since they serve from the app's origin
+2. They use the same component library, stores, and styles as the browser chrome
+3. The address bar maps the actual URL (`tauri://localhost/settings`) to display as `aero://settings`
+4. `navigate_to` detects `aero://` URLs and maps them to the corresponding `WebviewUrl::App` path
+5. Capabilities may need updating to include content webview labels for internal pages
+
+### URL Mapping
+
+```
+User types: aero://settings
+  → Rust detects aero:// prefix
+  → Creates/navigates content webview with WebviewUrl::App("/settings")
+  → WebView2 loads tauri://localhost/settings
+  → Address bar displays: aero://settings
+```
+
+---
+
+## ADR-009: Popup Window Pattern for Overlays
+
+### Context
+
+WebView2 content webviews always render on top of the UI webview due to z-ordering. Any UI that needs to overlay content webviews (context menus, dropdowns, popups) cannot be rendered in the UI webview's DOM.
+
+### Decision
+
+Use separate borderless, always-on-top OS windows for any UI that must appear on top of content webviews. This includes:
+- Tab context menus (right-click)
+- Bookmark folder dropdowns
+- Security info popup (padlock click)
+- Permission request prompts
+
+### Implementation
+
+```rust
+// Create a borderless popup window
+let popup = tauri::window::WindowBuilder::new(&app, "popup-label")
+    .inner_size(width, height)
+    .position(screen_x, screen_y)
+    .decorations(false)
+    .resizable(false)
+    .skip_taskbar(true)
+    .always_on_top(true)
+    .focused(true)
+    .transparent(true)
+    .build()?;
+```
+
+### IPC in Popups
+
+Popup webviews on `about:blank` don't have `__TAURI_INTERNALS__`. Instead, use navigation-based IPC:
+
+1. Menu items use `<div onclick="window.location='aero://action/close'">Close</div>`
+2. The webview's `on_navigation` handler intercepts `aero://action/*` URLs
+3. Actions are parsed and emitted as Tauri events
+4. The popup window is closed after the action
+
+### Auto-Dismissal
+
+Popups auto-close when:
+- User clicks outside (detected via `WindowEvent::Focused(false)` on the popup)
+- Main window moves or resizes (detected via `WindowEvent::Moved` / `WindowEvent::Resized` on main window)
+
+### Consequences
+
+- Each popup is a real OS window — slightly heavier than a DOM overlay
+- Positioning requires converting from logical to screen coordinates accounting for DPI scale
+- Height must be precisely calculated to avoid background gaps (match `html, body` background to menu colour)
 
 ---
 
